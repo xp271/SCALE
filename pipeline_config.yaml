@@ -1,0 +1,122 @@
+# Pipeline config: multi-model x multi-quantization -> LightCompress -> LLM-sycophancy
+# Calibration and quant.special are fixed from each method's official yml (no overrides).
+
+# Root paths (relative to this file's directory, or absolute)
+save_root: save
+
+# 校准/评测数据：当 calib_auto_download / eval_auto_download 为 true 时，LightCompress 会从 HuggingFace 自动下载
+#（wikitext2、pileval 等），此时 path 可填占位；为 false 时需指向已存在的本地数据目录
+calib_auto_download: true
+eval_auto_download: true
+calib_root: .   # 自动下载时可为占位（如 .）；不自动下载时填本地校准数据目录
+eval_root: .    # 自动下载时可为占位；不自动下载时填本地评测数据目录
+
+# Models: model_id (for paths/logs), path (HF id or local path), type (must match LightCompress MODEL_REGISTRY)
+models:
+# - model_id: llama_3.1_8b_instruct
+#   path: meta-llama/Llama-3.1-8B-Instruct
+#   type: Llama
+#  - model_id: qwen2.5_7b_instruct
+#    path: Qwen/Qwen2.5-7B-Instruct
+#    type: Qwen2
+#  - model_id: qwen3_4b_instruct_2507
+#    path: Qwen/Qwen3-4B-Instruct-2507
+#    type: Qwen3
+#  - model_id: qwen3_8b
+#    path: Qwen/Qwen3-8B
+#    type: Qwen3
+#  - model_id: deepseek_llm_7b_chat
+#    path: deepseek-ai/deepseek-llm-7b-chat
+#    type: Llama
+ - model_id: mistral_7b_instruct_v0_3
+   path: mistralai/Mistral-7B-Instruct-v0.3
+   type: Mistral
+#  - model_id: gemma-2-9b-it
+#    path: google/gemma-2-9b-it
+#    type: Gemma2
+
+
+
+# Methods: 只配置方法名，固定跑 4/6/8 bit；若需单精度可写 method_id（如 gptq_w4）
+methods:
+# - method: GPTQ
+# - method: Awq
+#  - method: RTN
+#  - method: NormTweaking
+#  - method: LlmInt8
+#  - method: SpQR
+# - method: OmniQuant
+# - method: SmoothQuant
+#  - method: QUIK
+# - method: QuaRot
+# - method: DGQ
+# - method: TesseraQ
+# - method: AdaDim
+# - method: OsPlus
+- method: HQQ
+
+# LightCompress torchrun
+nproc_per_node: 1         # 举例：两卡
+cuda_device: "1"        # auto=不设置 CUDA_VISIBLE_DEVICES（全部可见 GPU）；或 "0" / "0,1" 限制；评估设备见 syco.device
+
+# LLM-sycophancy run_syco.py arguments (passed when evaluating each fake_quant_model)
+# - dataset: 传给 --dataset，决定 output/ 与 output_inference/ 子目录（如 mmlu、commonsenseqa）
+# - data_slug: lib/ 下 pkl 文件名前缀，须与 build_lib_from_raw 生成一致（默认与 dataset 相同）
+# - raw_file / download_script: 自动准备数据时，下载 raw 与调用脚本（相对 LLM-sycophancy 根 或 experiments/data_generation/ 见脚本）
+# - build_lib_extra_args: 传给 build_lib_from_raw 的额外参数列表；MMLU 可省略，CQA 示例见下行注释
+# - 评估用的 lib/*.pkl 路径由 run_quant_syco_pipeline 根据 data_slug 自动生成，无需配置 input_filename
+syco:
+  # dataset: mmlu
+  # data_slug: mmlu
+  # raw_file: raw_data/mmlu_raw.pkl
+  # download_script: download_mmlu.py
+  # build_lib_extra_args: []
+  # CQA 示例（需先对同一 raw 跑 generate_prefixes 且 --output_name_prefix 一致）:
+  dataset: commonsenseqa
+  data_slug: commonsenseqa
+  raw_file: experiments/data_generation/raw_data/commonsenseqa_raw.pkl
+  download_script: download_commonsenseqa.py
+  build_lib_extra_args: ["--output_name_prefix", "academic_prefix_commonsenseqa"]
+  question_type: opinion_only
+  prefix_type: ""
+  prefix_subtype: original
+  academic_level: ""
+  full_question_column: full_question
+  max_retries: 1
+  answer_max_new_tokens: 0  # run_syco.py: 先生成 N 个 token 再提取选项字母；设 0 则仅用 argmax+decode
+  # debug_inference: true  # 可选 true/1：打开 run_syco 全部调试输出（checkpoint/load/tokenizer/smoke/每条样本截断与 logits）；或环境变量 RUN_SYCO_DEBUG=1
+  data_seed: [42]           # 评估用；单值 42 或列表 [42, 123, 456]
+  # # Advanced 学术第一人称（generate_prefixes 的 Advanced 档含 Authority 等角色；需 lib/pov/prefix/first_pov/{data_slug}_academic_opinion_advanced_{seed}.pkl）
+  # eval_authority_advanced: true
+  # # behavior 前缀 + opinion：默认读 lib/behavior/prefix/{data_slug}_behavior_opinion.pkl（与 opinion_only 的 lib 约定一致）；可显式覆盖
+  # eval_behavior_prefix: false
+  # # true: fig1 使用 correct-only SR（plain 下 full_precision 与当前模型都答对的题集合），只画 opinion_only 单柱并在文件名追加 correct_only
+  # eval_sr_correct_only: false
+  # behavior_input_filename: null   # 可选；非空则覆盖默认路径
+  # # 机理（mech）：run_syco_logit_cot + 绘图阶段 compute_decision_score / plot_kl_divergence；false 时跳过以省显存与时间
+  # eval_mechanistic: false
+  # # run_syco_logit_cot：保存每层选项 token 的 HS，供 mechanistic_analysis/analyse 使用（未开启则主 pkl 无 HS）
+  # save_option_hs: false
+  # 可选：按行把 HS 写入单独 pkl，主表只保留 hs_artifact_path（减小主 pkl 体积；路径相对 mechanistic_analysis 运行目录）
+  # stream_hs_dir: "output_hs_stream/commonsenseqa"
+  # Advanced 学术第一人称（generate_prefixes 的 Advanced 档含 Authority 等角色；需 lib/pov/prefix/first_pov/{data_slug}_academic_opinion_advanced_{seed}.pkl）
+  eval_authority_advanced: true
+  # behavior 前缀 + opinion：默认读 lib/behavior/prefix/{data_slug}_behavior_opinion.pkl（与 opinion_only 的 lib 约定一致）；可显式覆盖
+  eval_behavior_prefix: false
+  # true: fig1 使用 correct-only SR（plain 下 full_precision 与当前模型都答对的题集合），只画 opinion_only 单柱并在文件名追加 correct_only
+  eval_sr_correct_only: false
+  behavior_input_filename: null   # 可选；非空则覆盖默认路径
+  # 机理（mech）：run_syco_logit_cot + 绘图阶段 compute_decision_score / plot_kl_divergence；false 时跳过以省显存与时间
+  eval_mechanistic: false
+  # run_syco_logit_cot：保存每层选项 token 的 HS，供 mechanistic_analysis/analyse 使用（未开启则主 pkl 无 HS）
+  save_option_hs: false
+  # 可选：按行把 HS 写入单独 pkl，主表只保留 hs_artifact_path（减小主 pkl 体积；路径相对 mechanistic_analysis 运行目录）
+  # stream_hs_dir: "output_hs_stream/commonsenseqa"
+
+# Optional: run compute_accuracy on each run_syco output and aggregate to this CSV
+aggregate_accuracy_csv: null   # set to a path, e.g. results/accuracy_summary.csv, to enable
+
+# Optional: after eval, run plot_figure2, compute_decision_score, plot_kl_divergence.
+# 图文件名含 syco.dataset，例如 fig2_plain_vs_opinion_{dataset}_{model}_{method}.png、ds_{dataset}_....png、kl_divergence_{dataset}_....png
+plot_figures: true
+# figure_output_dir: null   # optional; default "figure" under each script cwd

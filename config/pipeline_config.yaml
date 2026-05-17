@@ -1,0 +1,109 @@
+# Pipeline config: drives run_pipeline.py.
+# Runtime CLI args take precedence over yaml for the following fields:
+#   --dataset  -> syco.dataset (must be a key in syco.datasets below)
+#   --model    -> models[*].model_id (must already exist in this list)
+#   --method   -> methods[*].method  (must already exist in this list)
+#   --eval     -> syco.eval_mechanistic / eval_authority_advanced / eval_behavior_prefix
+#   --gpu      -> cuda_device (cuda:N / N / N,M; mapped to CUDA_VISIBLE_DEVICES)
+
+# Path roots (relative to this file or absolute):
+#   - cache_root: HF cache + quantized model dirs.
+#   - save_root:  syco pkl outputs (behavioral / mechanistic).
+#   - result_root: figure outputs.
+cache_root: ../cache
+save_root: ../save
+result_root: ../result
+
+# 校准/评测数据自动下载开关；为 false 时需指向已存在的本地数据目录
+calib_auto_download: true
+eval_auto_download: true
+calib_root: ..
+eval_root: ..
+
+# Repo locations
+llmc_dir: ../quantization/LightCompress
+syco_repo_dir: ../evaluation/LLM-sycophancy
+
+# Models 候选池：CLI --model 必须命中其中一个 model_id
+models:
+  - model_id: llama_3.1_8b_instruct
+    path: meta-llama/Llama-3.1-8B-Instruct
+    type: Llama
+  - model_id: qwen2.5_7b_instruct
+    path: Qwen/Qwen2.5-7B-Instruct
+    type: Qwen2
+  - model_id: qwen3_4b_instruct_2507
+    path: Qwen/Qwen3-4B-Instruct-2507
+    type: Qwen3
+  - model_id: qwen3_8b
+    path: Qwen/Qwen3-8B
+    type: Qwen3
+  - model_id: deepseek_llm_7b_chat
+    path: deepseek-ai/deepseek-llm-7b-chat
+    type: Llama
+  - model_id: mistral_7b_instruct_v0_3
+    path: mistralai/Mistral-7B-Instruct-v0.3
+    type: Mistral
+  - model_id: gemma-2-9b-it
+    path: google/gemma-2-9b-it
+    type: Gemma2
+
+# Methods 候选池：CLI --method 必须命中其中一个 method 名。每个方法固定跑 4/6/8 bit；
+# 若需单 bit 可加 method_id（如 awq_w4）。
+methods:
+  - method: GPTQ
+  - method: Awq
+  - method: RTN
+  - method: NormTweaking
+  - method: LlmInt8
+  - method: SpQR
+  - method: OmniQuant
+  - method: SmoothQuant
+  - method: QUIK
+  - method: QuaRot
+  - method: DGQ
+  - method: TesseraQ
+  - method: AdaDim
+  - method: OsPlus
+  - method: HQQ
+
+# LightCompress torchrun
+nproc_per_node: 1
+
+# Sycophancy 评估通用字段（不受 CLI 控制）。
+# syco.datasets 是按 --dataset 选定的 per-dataset 字段表；命中的子项会被合并到 syco 顶层。
+syco:
+  datasets:
+    mmlu:
+      data_slug: mmlu
+      raw_file: raw_data/mmlu_raw.pkl
+      download_script: download_mmlu.py
+      build_lib_extra_args: []
+    commonsenseqa:
+      data_slug: commonsenseqa
+      raw_file: experiments/data_generation/raw_data/commonsenseqa_raw.pkl
+      download_script: download_commonsenseqa.py
+      build_lib_extra_args: ["--output_name_prefix", "academic_prefix_commonsenseqa"]
+
+  question_type: opinion_only
+  prefix_type: ""
+  prefix_subtype: original
+  academic_level: ""
+  full_question_column: full_question
+  max_retries: 1
+  answer_max_new_tokens: 0  # 先生成 N 个 token 再提取选项字母；0=仅 argmax+decode
+  # debug_inference: true   # 可选；或环境变量 RUN_SYCO_DEBUG=1
+  data_seed: [42]            # 评估用 seed；单值 42 或列表 [42, 123, 456]
+  # fig1 是否用 correct-only SR（plain 下 full_precision 与当前模型都答对的题集合）
+  eval_sr_correct_only: true
+  behavior_input_filename: null
+  # run_syco_logit_cot：保存每层选项 token 的 HS（与 stream_hs_dir 配合时主 pkl 不存 HS）
+  save_option_hs: false
+  # stream_hs_dir: "output_hs_stream/commonsenseqa"
+
+# Optional: 把每次 opinion_only run 的 compute_accuracy 结果聚合到 CSV
+aggregate_accuracy_csv: null
+
+# Optional: 评估结束后是否绘图（沿用 run_plot_phase）
+plot_figures: true
+# figure_output_dir: null   # 覆盖默认 result_root；不设置时按 result_root/behavioral/{dataset}/
