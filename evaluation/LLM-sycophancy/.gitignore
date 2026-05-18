@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.egg-info/
+.env
+
+# Outputs
+output/
+output_*/
+results/
+checkpoints/
+*.pkl
+*.csv
+
+# Plots and visualizations
+*.png
+*.jpg
+*.pdf
+batch_analysis_plots*/
+analysis_plots/
+
+# Model cache
+modelhub/
+.cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.bak
+a.out
+
+# Data files (keep structure, ignore content)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Allow project images stored in img/ to be committed (override global image ignore above)
+!img/*.png

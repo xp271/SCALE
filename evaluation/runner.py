@@ -63,6 +63,7 @@ def run_syco_eval(
     model_output_name: str | None = None,
     cuda_visible_devices: str | None = None,
     output_base: str | None = None,
+    huggingface_token: str | None = None,
 ) -> str | None:
     """Run one syco eval (run_syco.py or run_syco_logit_cot.py). Return output pkl path if produced."""
     script_name = eval_job["script"]
@@ -106,6 +107,9 @@ def run_syco_eval(
     env = os.environ.copy()
     if cuda_visible_devices is not None:
         env["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
+    hf_tok = (huggingface_token or "").strip()
+    if hf_tok:
+        env["HF_TOKEN"] = hf_tok
     try:
         result = subprocess.run(
             cmd,
@@ -172,6 +176,11 @@ def eval_model_against_jobs(
     eval_jobs = list(eval_jobs)
     full_question_column = syco_args.get("full_question_column", "full_question")
     max_retries = syco_args.get("max_retries", 3)
+    _hf_raw = syco_args.get("huggingface_token") or syco_args.get("hf_token")
+    if _hf_raw is None or _hf_raw == "":
+        huggingface_token = None
+    else:
+        huggingface_token = str(_hf_raw).strip() or None
     rows: list[dict] = []
     for data_seed in data_seeds:
         pkl_for_aggregate: str | None = None
@@ -219,6 +228,7 @@ def eval_model_against_jobs(
                 model_output_name=model_output_name,
                 cuda_visible_devices=cuda_visible_devices,
                 output_base=output_base,
+                huggingface_token=huggingface_token,
             )
             if eval_job.get("for_aggregate") and pkl_path:
                 pkl_for_aggregate = pkl_path

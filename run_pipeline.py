@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """CLI-driven thin entry: LightCompress -> LLM-sycophancy eval -> figures.
 
-Five required runtime parameters drive a single (dataset, model, method, eval
-set, gpu) combo; everything else lives in [config/pipeline_config.yaml](config/pipeline_config.yaml).
+CLI 必填：``--dataset``、``--model``、``--method``、``--bits``、``--gpu``；跑评估时还需 ``--eval``
+（``--skip_eval`` 时可省略 ``--eval``）。其余默认见 [config/pipeline_config.yaml](config/pipeline_config.yaml)。
 Use ``--plot_scan_existing`` to skip quant/eval and re-plot from existing pkls.
 
 Usage:
@@ -10,9 +10,16 @@ Usage:
         --dataset mmlu \\
         --model mistral_7b_instruct_v0_3 \\
         --method Awq \\
+        --bits 4 \\
         --eval behavioral,mechanistic \\
         --gpu cuda:0 \\
         [--config config/pipeline_config.yaml]
+
+    behavioral 图默认 full SR；若需 correct-only，在 ``--eval`` 中加元 token ``correct_only``（须同时选
+    ``behavioral`` 等 job token），例如 ``behavioral,correct_only``。若 yaml 里开了 correct-only，可用 ``full_sr`` 强制全量 SR（与 ``correct_only`` 互斥）。
+
+    多 seed 评估与绘图平均：默认 ``--eval_avg_runs 3``、``--data_seed_rng 42``，由 PRNG 生成 3 个 ``data_seed``，
+    数据准备 / 评估 / 制图会对这 3 套数据各跑一遍，图里对多份 pkl 求平均。
 """
 from __future__ import annotations
 
@@ -23,6 +30,7 @@ from pathlib import Path
 
 from config.parser import (
     CliArgs,
+    eval_tags_for_jobs,
     expand_eval_modes,
     filter_eval_jobs_by_tags,
     narrow_config_for_cli,
@@ -34,7 +42,7 @@ from evaluation.job_builder import build_syco_eval_jobs
 from evaluation.runner import eval_model_against_jobs
 from figure.orchestrator import run_plot_phase
 from figure.scan import run_plot_from_existing_pkls
-from quantization.registry import expand_methods_to_bits, get_method
+from quantization.registry import get_method, resolve_method_quant_combo
 from quantization.runner import run_lightcompress
 from quantization.yml_builder import dump_run_yml
 from utils.config_loader import load_config
@@ -47,7 +55,7 @@ from utils.paths import (
     resolve_path,
     resolve_path_roots,
 )
-from utils.seeds import normalize_data_seeds
+from utils.seeds import generate_eval_data_seeds, normalize_data_seeds
 
 
 def _resolve_repos(cfg: dict, config_dir: Path, script_dir: Path) -> tuple[Path, Path, Path]:
@@ -80,7 +88,7 @@ def _handle_plot_scan_mode(
     if cli.plot_scan_seeds:
         scan_seeds = [int(x.strip()) for x in cli.plot_scan_seeds.split(",") if x.strip()]
     else:
-        scan_seeds = [s for s in normalize_data_seeds(syco_cfg.get("data_seed", 42)) if s is not None] or [42]
+        scan_seeds = generate_eval_data_seeds(cli.data_seed_rng, cli.eval_avg_runs)
     scan_figure_dir = cli.plot_scan_figure_dir or str(result_root / "behavioral" / scan_dataset)
     if cli.plot_scan_correct_only is None:
         scan_correct_only = bool(syco_cfg.get("eval_sr_correct_only", False))
@@ -208,6 +216,7 @@ def main() -> None:
     syco_dataset = syco_args.get("dataset")
     data_slug = syco_args.get("data_slug") or syco_dataset
     eval_tags = expand_eval_modes(cli.eval_modes)
+    eval_job_tags = eval_tags_for_jobs(eval_tags)
     eval_mechanistic = bool(syco_args.get("eval_mechanistic", False))
     eval_authority_advanced = bool(syco_args.get("eval_authority_advanced", False))
     eval_behavior_prefix = bool(syco_args.get("eval_behavior_prefix", False))
@@ -223,10 +232,10 @@ def main() -> None:
             eval_behavior_prefix=eval_behavior_prefix,
             behavior_input_filename=syco_args.get("behavior_input_filename"),
         )
-        eval_jobs = filter_eval_jobs_by_tags(eval_jobs_all, eval_tags)
+        eval_jobs = filter_eval_jobs_by_tags(eval_jobs_all, eval_job_tags)
         if not eval_jobs:
             print(
-                f"--eval {cli.eval_modes} 展开为 {sorted(eval_tags)} 后无可执行的 job。请检查 token 拼写。",
+                f"--eval {cli.eval_modes} 用于 job 过滤的标签为 {sorted(eval_job_tags)} 后无可执行的 job。请检查 token 拼写。",
                 file=sys.stderr,
             )
             sys.exit(2)
@@ -241,6 +250,13 @@ def main() -> None:
     figure_output_dir = cfg.get("figure_output_dir")
 
     data_seeds = normalize_data_seeds(syco_args.get("data_seed", 42))
+    if not cli.skip_eval:
+        seeds_nonone = [s for s in data_seeds if s is not None]
+        if seeds_nonone:
+            print(
+                f"[data_seed] --data_seed_rng={cli.data_seed_rng} --eval_avg_runs={cli.eval_avg_runs} "
+                f"→ 本次评估 {len(seeds_nonone)} 个数据集种子: {seeds_nonone}"
+            )
 
     # 2) 确保所需 seed 的 lib/*.pkl 与 Academic 三档输入齐备（仅评估阶段需要）
     if not cli.skip_eval:
@@ -299,7 +315,12 @@ def main() -> None:
         completed_combos.append((model_id_fs, method_id_fp))
 
     # 4) 量化 + 评估
-    method_combos = expand_methods_to_bits(methods)
+    assert cli.weight_bits is not None
+    try:
+        method_combos = [resolve_method_quant_combo(methods[0], cli.weight_bits)]
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(2)
     for method_name, method_id, weight_bits in method_combos:
         fake_quant_dir = _quantize_one(
             model_id=model_id,

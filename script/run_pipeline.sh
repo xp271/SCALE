@@ -4,13 +4,13 @@
 #
 # 示例（与其它参数写法一致，按需删改）：
 #
-#   python run_pipeline.py \
-#     --dataset mmlu \
-#     --model mistral_7b_instruct_v0_3 \
-#     --method Awq \
-#     --eval behavioral,mechanistic \
-#     --gpu cuda:0 \
-#     --config config/pipeline_config.yaml
+  python run_pipeline.py \
+    --dataset commonsenseqa \
+    --model llama_3.1_8b_instruct \
+    --method RTN \
+    --bits 4 \
+    --eval behavioral \
+    --gpu cuda:0 
 #
 # 通过本脚本等价调用（参数原样透传）：
 #
@@ -18,6 +18,7 @@
 #     --dataset mmlu \
 #     --model mistral_7b_instruct_v0_3 \
 #     --method Awq \
+#     --bits 4 \
 #     --eval behavioral,mechanistic \
 #     --gpu cuda:0 \
 #     --config config/pipeline_config.yaml

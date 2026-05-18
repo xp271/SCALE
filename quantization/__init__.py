@@ -5,6 +5,7 @@ from quantization.registry import (
     get_method,
     list_registered_methods,
     parse_weight_bits_from_method_id,
+    resolve_method_quant_combo,
 )
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "get_method",
     "list_registered_methods",
     "parse_weight_bits_from_method_id",
+    "resolve_method_quant_combo",
 ]

@@ -5,11 +5,20 @@ import sys
 from pathlib import Path
 
 from evaluation.paths import expected_syco_pkl_path
-from figure.behavioral_plots import run_fig1, run_fig2_authority
-from figure.mechanistic_plots import run_decision_score, run_kl_divergence
+from figure.behavioral import run_fig1, run_fig2_authority
+from figure.mechanistic import run_decision_score, run_kl_divergence
+
 from utils.paths import DIR_SYCO_SCRIPT
 
 MECH_SUBDIR = "experiments/mechanistic_analysis"
+
+
+def _resolve_behavioral_output_base(syco_repo: Path, behavioral_output_base: str) -> str:
+    """``output`` 等相对路径与旧版 cwd=behavioral_analysis 行为一致。"""
+    p = Path(behavioral_output_base)
+    if p.is_absolute():
+        return str(p.resolve())
+    return str((syco_repo / DIR_SYCO_SCRIPT / p).resolve())
 
 
 def plot_combo(
@@ -28,8 +37,8 @@ def plot_combo(
     mechanistic_output_base: str = "output_inference",
 ) -> None:
     """Generate every figure that the legacy pipeline produced for one (model, method)."""
-    ba_dir = syco_repo / DIR_SYCO_SCRIPT
     mech_dir = syco_repo / MECH_SUBDIR
+    behavioral_resolved = _resolve_behavioral_output_base(syco_repo, behavioral_output_base)
     plot_output_name = f"{plot_model_id}_{plot_method_id}"
     plot_name_with_dataset = f"{dataset}_{plot_output_name}"
     if eval_sr_correct_only:
@@ -37,27 +46,25 @@ def plot_combo(
 
     # 1) fig1: Plain vs Opinion-Only
     run_fig1(
-        ba_dir=ba_dir,
         dataset=dataset,
         figure_dir=figure_dir,
         plot_output_name=plot_output_name,
         plot_name_with_dataset=plot_name_with_dataset,
         seeds_for_plot=seeds_for_plot,
         eval_sr_correct_only=eval_sr_correct_only,
-        output_base=behavioral_output_base,
+        output_base=behavioral_resolved,
         baseline_model_type=f"{plot_model_id}_full_precision",
     )
 
     # 1.1) fig2: First-pov Academic（仅 eval_authority_advanced）
     if eval_authority_advanced:
         run_fig2_authority(
-            ba_dir=ba_dir,
             dataset=dataset,
             figure_dir=figure_dir,
             plot_output_name=plot_output_name,
             plot_name_with_dataset=plot_name_with_dataset,
             seeds_for_plot=seeds_for_plot,
-            output_base=behavioral_output_base,
+            output_base=behavioral_resolved,
         )
 
     # 2) compute_decision_score: 仅在机理分支

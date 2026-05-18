@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 只跑量化：在命令末尾追加 --skip_eval --skip_plot（须在仓库根执行 python）。
-# 量化产物落在 cache_root/mistral_7b_instruct_v0_3/awq_w{4,6,8}/fake_quant_model 等路径。
+# 量化产物落在 cache_root/<model_id_fs>/<method_id>/fake_quant_model（method_id 由 --bits 决定，如 awq_w4）。
 #
 # 示例（无 --eval；数据集键仍需存在于 yaml 的 syco.datasets）：
 #
@@ -8,6 +8,7 @@
 #     --dataset mmlu \
 #     --model mistral_7b_instruct_v0_3 \
 #     --method Awq \
+#     --bits 4 \
 #     --gpu cuda:0 \
 #     --config config/pipeline_config.yaml \
 #     --skip_eval \
@@ -19,6 +20,7 @@
 #     --dataset mmlu \
 #     --model mistral_7b_instruct_v0_3 \
 #     --method Awq \
+#     --bits 4 \
 #     --gpu cuda:0 \
 #     --config config/pipeline_config.yaml
 #

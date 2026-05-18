@@ -62,6 +62,9 @@ def expand_methods_to_bits(methods: list) -> list[tuple[str, str, int]]:
 
     仅配置 ``method`` 时固定跑 4/6/8 bit；显式给出 ``method_id`` 时按其后缀解析 bit。
     未注册的 method 会被跳过。
+
+    注意：:func:`run_pipeline.py` 主入口已改为 CLI 指定单一位宽并调用
+    :func:`resolve_method_quant_combo`；本函数仍可用于其它批量脚本。
     """
     _ensure_methods_loaded()
     result: list[tuple[str, str, int]] = []
@@ -78,3 +81,34 @@ def expand_methods_to_bits(methods: list) -> list[tuple[str, str, int]]:
             for b in DEFAULT_WEIGHT_BITS:
                 result.append((method_name, method.default_method_id(b), b))
     return result
+
+
+def resolve_method_quant_combo(method_cfg: dict, weight_bits: int) -> tuple[str, str, int]:
+    """由 yaml 单条 method 配置与 CLI ``--bits`` 解析唯一 (method_name, method_id, weight_bits)。
+
+    - 若配置了 ``method_id`` 且带 ``_wN`` 后缀，则 ``N`` 必须与 ``weight_bits`` 一致。
+    - 若 ``method_id`` 无 ``_wN`` 后缀，则报错（请删除该字段仅用 ``--bits``，或改为 ``*_wN``）。
+    - 若未配置 ``method_id``，则使用 ``default_method_id(weight_bits)``。
+    """
+    _ensure_methods_loaded()
+    method_name = method_cfg.get("method")
+    if not method_name:
+        raise ValueError("methods 配置缺少 method 字段")
+    method = _REGISTRY.get(method_name)
+    if method is None:
+        raise ValueError(f"未知量化方法: {method_name!r}")
+    fixed_id = method_cfg.get("method_id")
+    if fixed_id is not None:
+        parsed = parse_weight_bits_from_method_id(fixed_id)
+        if parsed is not None:
+            if parsed != weight_bits:
+                raise ValueError(
+                    f"yaml 中 method_id={fixed_id!r} 对应 W{parsed}，与 --bits {weight_bits} 不一致；"
+                    "请改为匹配位宽或删除 method_id"
+                )
+            return (method_name, fixed_id, weight_bits)
+        raise ValueError(
+            f"yaml 中 method_id={fixed_id!r} 无法解析位宽（需要 *_wN 后缀）；"
+            f"请删除 method_id 并仅用 --bits {weight_bits}，或改为类似 {method.default_method_id(weight_bits)!r}"
+        )
+    return (method_name, method.default_method_id(weight_bits), weight_bits)

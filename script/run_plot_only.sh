@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 只绘图：基于 save_root/behavioral 下已有 pkl 扫描并调用 plot_figure2。
+# 只绘图：基于 save_root/behavioral 下已有 pkl，经 run_pipeline → figure.scan / figure.behavioral。
 # 须带上 --plot_scan_existing 与 --plot_scan_model_id（以及可选 --dataset 等）。
 #
 # 示例：

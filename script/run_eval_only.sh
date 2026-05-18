@@ -8,6 +8,7 @@
 #     --dataset mmlu \
 #     --model mistral_7b_instruct_v0_3 \
 #     --method Awq \
+#     --bits 4 \
 #     --eval behavioral,mechanistic \
 #     --gpu cuda:0 \
 #     --config config/pipeline_config.yaml \
@@ -19,6 +20,7 @@
 #     --dataset mmlu \
 #     --model mistral_7b_instruct_v0_3 \
 #     --method Awq \
+#     --bits 4 \
 #     --eval behavioral,mechanistic \
 #     --gpu cuda:0 \
 #     --config config/pipeline_config.yaml

@@ -1,7 +1,8 @@
 """CLI parser + yaml validation/narrowing for run_pipeline.py.
 
-The pipeline is driven by five required runtime parameters (``--dataset``,
-``--model``, ``--method``, ``--eval``, ``--gpu``). Everything else lives in
+The pipeline is driven by required runtime parameters (``--dataset``,
+``--model``, ``--method``, ``--bits``, ``--eval``, ``--gpu``; ``--eval`` may be
+omitted with ``--skip_eval``). Everything else lives in
 ``config/pipeline_config.yaml``. This module:
 
 - Parses argv with :func:`parse_cli` into a :class:`CliArgs` dataclass.
@@ -23,6 +24,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+
+from utils.seeds import generate_eval_data_seeds
 
 # --- Eval mode expansion ----------------------------------------------------
 
@@ -49,6 +52,11 @@ _FINE_GRAINED: frozenset[str] = frozenset(
     }
 )
 
+# 仅影响绘图/统计口径（eval_sr_correct_only），不参与 job tag 过滤
+_EVAL_META_TAGS: frozenset[str] = frozenset({"correct_only", "full_sr"})
+_CORRECT_ONLY_TAG = "correct_only"
+_FULL_SR_TAG = "full_sr"
+
 # 用于推导 yaml 的三个布尔
 _AUTHORITY_TAG = "authority"
 _BEHAVIOR_PREFIX_TAG = "behavior_prefix"
@@ -60,14 +68,15 @@ class CliArgs:
     """Parsed CLI arguments.
 
     Non plot-only invocations require ``dataset / model_id / method / gpu``
-    plus ``eval_modes`` (latter optional when ``--skip_eval`` is set).
-    plot-only invocations may leave the 5 base args blank and only need
+    plus ``weight_bits`` (``--bits``), and ``eval_modes`` unless ``--skip_eval``.
+    plot-only invocations may leave the base args blank and only need
     ``plot_scan_model_id`` (``plot_scan_existing=True``).
     """
 
     dataset: str | None
     model_id: str | None
     method: str | None
+    weight_bits: int | None
     eval_modes: tuple[str, ...]
     gpu: str | None
     config_path: Path
@@ -80,6 +89,9 @@ class CliArgs:
     plot_scan_seeds: str | None
     plot_scan_figure_dir: str | None
     plot_scan_correct_only: str | None
+    # 评估：多 seed 数据准备与绘图平均（--plot_scan_seeds 未给时用同一套）
+    eval_avg_runs: int
+    data_seed_rng: int
 
 
 def _default_config_path() -> Path:
@@ -92,7 +104,7 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
     p = argparse.ArgumentParser(
         prog="run_pipeline.py",
         description=(
-            "Run one (dataset, model, method, eval set) combo on a single GPU. "
+            "Run one (dataset, model, method, --bits, eval set) combo on a single GPU. "
             "Use --plot_scan_existing to re-plot from existing pkls without "
             "running quantization or evaluation."
         ),
@@ -101,17 +113,44 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
     p.add_argument("--model", dest="model_id", help="Model id; must exist in yaml models[*].model_id")
     p.add_argument("--method", help="Quant method name; must exist in yaml methods[*].method (e.g. Awq)")
     p.add_argument(
+        "--bits",
+        dest="weight_bits",
+        type=int,
+        metavar="N",
+        help="Weight quantization width (e.g. 4 for W4). Required unless --plot_scan_existing.",
+    )
+    p.add_argument(
         "--eval",
         dest="eval_modes",
         help=(
             "Comma list of eval modes. Top-level: behavioral | mechanistic | logit_cot. "
             "Fine-grained: plain | opinion_only | authority | behavior_prefix | "
-            "logit_cot_plain | logit_cot_opinion. Multi-select union."
+            "logit_cot_plain | logit_cot_opinion. "
+            "Meta (SR scope): correct_only (opt-in correct-only SR for behavioral figs; default is full SR). "
+            "full_sr forces full SR when yaml had eval_sr_correct_only true (mutually exclusive with correct_only). "
+            "Multi-select union."
         ),
     )
     p.add_argument(
         "--gpu",
         help="GPU spec. Accepts 'cuda:N', 'N', or 'N,M'. Maps to CUDA_VISIBLE_DEVICES; syco device becomes cuda:0.",
+    )
+    p.add_argument(
+        "--eval_avg_runs",
+        type=int,
+        default=3,
+        metavar="N",
+        help=(
+            "评估与绘图平均用的数据 seed 个数。与 --data_seed_rng 共同决定 syco.data_seed 列表 "
+            "（仅在未 --skip_eval 时写入配置；plot-only 且无 --plot_scan_seeds 时用于选 seed）。默认 3。"
+        ),
+    )
+    p.add_argument(
+        "--data_seed_rng",
+        type=int,
+        default=42,
+        metavar="S",
+        help="用于生成上述 N 个 data_seed 的随机数发生器种子（可复现）。默认 42。",
     )
     p.add_argument(
         "--config",
@@ -135,7 +174,7 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
     # plot-only 短路分支
     p.add_argument("--plot_scan_existing", action="store_true", help="Plot from existing pkls; skip quant/eval.")
     p.add_argument("--plot_scan_model_id", default=None, help="(plot-only) model id whose pkls to scan")
-    p.add_argument("--plot_scan_seeds", default=None, help="(plot-only) comma-separated seeds")
+    p.add_argument("--plot_scan_seeds", default=None, help="(plot-only) explicit comma-separated data_seeds; if omitted uses --data_seed_rng + --eval_avg_runs")
     p.add_argument("--plot_scan_figure_dir", default=None, help="(plot-only) override figure output dir")
     p.add_argument("--plot_scan_correct_only", default=None, help="(plot-only) override correct_only_sr flag")
 
@@ -146,10 +185,13 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
     if ns.plot_scan_existing:
         if not ns.plot_scan_model_id:
             p.error("--plot_scan_existing requires --plot_scan_model_id <model_id>")
+        if ns.eval_avg_runs < 1:
+            p.error("--eval_avg_runs must be >= 1")
         return CliArgs(
             dataset=ns.dataset,
             model_id=None,
             method=None,
+            weight_bits=None,
             eval_modes=tuple(),
             gpu=None,
             config_path=config_path,
@@ -160,9 +202,11 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
             plot_scan_seeds=ns.plot_scan_seeds,
             plot_scan_figure_dir=ns.plot_scan_figure_dir,
             plot_scan_correct_only=ns.plot_scan_correct_only,
+            eval_avg_runs=ns.eval_avg_runs,
+            data_seed_rng=ns.data_seed_rng,
         )
 
-    # 普通运行模式：4 必填 (dataset / model / method / gpu) + 1 条件必填 (--eval)
+    # 普通运行模式：4 必填 (dataset / model / method / gpu) + bits + 1 条件必填 (--eval)
     base_required = (
         ("--dataset", ns.dataset),
         ("--model", ns.model_id),
@@ -170,6 +214,12 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
         ("--gpu", ns.gpu),
     )
     missing = [name for name, val in base_required if not val]
+    if ns.weight_bits is None:
+        missing.append("--bits")
+    elif ns.weight_bits <= 0:
+        p.error("--bits must be a positive integer")
+    if ns.eval_avg_runs < 1:
+        p.error("--eval_avg_runs must be >= 1")
     if not ns.skip_eval and not ns.eval_modes:
         missing.append("--eval")
     if missing:
@@ -178,13 +228,15 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
     raw_modes: list[str] = []
     if ns.eval_modes:
         raw_modes = [t.strip() for t in str(ns.eval_modes).split(",") if t.strip()]
-        valid_tokens = set(_TOP_LEVEL_EXPANSION) | _FINE_GRAINED
+        valid_tokens = set(_TOP_LEVEL_EXPANSION) | _FINE_GRAINED | _EVAL_META_TAGS
         bad = [t for t in raw_modes if t not in valid_tokens]
         if bad:
             p.error(
                 f"--eval got unknown token(s): {bad}. "
                 f"Valid: {sorted(valid_tokens)}"
             )
+        if _CORRECT_ONLY_TAG in raw_modes and _FULL_SR_TAG in raw_modes:
+            p.error("--eval cannot combine correct_only with full_sr (choose one).")
 
     try:
         normalize_gpu(ns.gpu)
@@ -195,6 +247,7 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
         dataset=ns.dataset,
         model_id=ns.model_id,
         method=ns.method,
+        weight_bits=ns.weight_bits,
         eval_modes=tuple(raw_modes),
         gpu=ns.gpu,
         config_path=config_path,
@@ -205,6 +258,8 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
         plot_scan_seeds=None,
         plot_scan_figure_dir=None,
         plot_scan_correct_only=None,
+        eval_avg_runs=ns.eval_avg_runs,
+        data_seed_rng=ns.data_seed_rng,
     )
 
 
@@ -215,6 +270,8 @@ def expand_eval_modes(tokens: Iterable[str]) -> set[str]:
     → ``{logit_cot_plain, logit_cot_opinion}``. Fine-grained tokens are kept
     as-is. ``authority`` and ``behavior_prefix`` map to the same string and
     are interpreted by callers (they're agg switches, not job tags).
+    Meta tokens ``correct_only`` / ``full_sr`` are kept for :func:`narrow_config_for_cli`
+    and stripped by :func:`eval_tags_for_jobs` before job filtering.
     """
     out: set[str] = set()
     for tok in tokens:
@@ -225,9 +282,16 @@ def expand_eval_modes(tokens: Iterable[str]) -> set[str]:
             out.update(_TOP_LEVEL_EXPANSION[tok])
         elif tok in _FINE_GRAINED:
             out.add(tok)
+        elif tok in _EVAL_META_TAGS:
+            out.add(tok)
         else:
             raise ValueError(f"unknown eval token: {tok}")
     return out
+
+
+def eval_tags_for_jobs(tags: set[str]) -> set[str]:
+    """Subset tags used by :func:`filter_eval_jobs_by_tags` (drop SR meta tokens)."""
+    return tags - _EVAL_META_TAGS
 
 
 def eval_flags_from_tags(tags: set[str]) -> dict[str, bool]:
@@ -321,6 +385,11 @@ def narrow_config_for_cli(cfg: dict, cli: CliArgs) -> dict:
     - ``syco.dataset`` is set to the CLI value.
     - ``syco.eval_mechanistic / eval_authority_advanced / eval_behavior_prefix``
       booleans are overwritten from CLI tags.
+    - ``syco.eval_sr_correct_only`` is set from meta tags ``correct_only`` / ``full_sr``
+      when present; otherwise the yaml value is kept.
+    - When not ``skip_eval``, ``syco.data_seed`` is replaced by
+      :func:`utils.seeds.generate_eval_data_seeds` from ``cli.data_seed_rng`` and
+      ``cli.eval_avg_runs`` (yaml 中的列表不再使用）。
     - Top-level ``cuda_device`` is overwritten with :func:`normalize_gpu`.
 
     Validation failures call :func:`sys.exit(2)` with a friendly message.
@@ -351,6 +420,13 @@ def narrow_config_for_cli(cfg: dict, cli: CliArgs) -> dict:
 
     tags = expand_eval_modes(cli.eval_modes)
     syco.update(eval_flags_from_tags(tags))
+    if _CORRECT_ONLY_TAG in tags:
+        syco["eval_sr_correct_only"] = True
+    elif _FULL_SR_TAG in tags:
+        syco["eval_sr_correct_only"] = False
+
+    if not cli.skip_eval:
+        syco["data_seed"] = generate_eval_data_seeds(cli.data_seed_rng, cli.eval_avg_runs)
 
     cfg["cuda_device"] = normalize_gpu(cli.gpu)
     return cfg

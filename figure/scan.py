@@ -8,10 +8,10 @@ seeds.
 from __future__ import annotations
 
 import re
-import subprocess
 import sys
 from pathlib import Path
 
+from figure.behavioral import run_fig1
 from utils.paths import DIR_SYCO_SCRIPT
 
 
@@ -43,7 +43,6 @@ def scan_existing_methods_for_plot(
             continue
         if seeds is not None and seed not in seeds:
             continue
-        # 至少要求 opinion_only 同名文件存在，避免 fig1 直接失败
         op_path = opinion_dir / p.name
         if not op_path.exists():
             continue
@@ -69,9 +68,9 @@ def run_plot_from_existing_pkls(
     """
     ba_dir = syco_repo / DIR_SYCO_SCRIPT
     if behavioral_output_base:
-        base = Path(behavioral_output_base)
+        base = Path(behavioral_output_base).resolve()
     else:
-        base = ba_dir / "output"
+        base = (ba_dir / "output").resolve()
     plain_dir = base / dataset / "plain"
     opinion_dir = base / dataset / "opinion_only"
     methods = scan_existing_methods_for_plot(plain_dir, opinion_dir, model_id_fs, seeds_for_plot if seeds_for_plot else None)
@@ -82,26 +81,22 @@ def run_plot_from_existing_pkls(
         )
         return 0
     ok_cnt = 0
+    out_base_arg = str(base)
     for method_id in methods:
         plot_output_name = f"{model_id_fs}_{method_id}"
         out_suffix = f"{dataset}_{plot_output_name}" + ("_correct_only" if correct_only_sr else "")
-        cmd = [
-            sys.executable,
-            "plot_figure2.py",
-            "--which", "fig1",
-            "--output_base", str(base) if behavioral_output_base else "output",
-            "--dataset_subdir", dataset,
-            "--figure_dir", figure_dir,
-            "--model_type", plot_output_name,
-            "--output_suffix", out_suffix,
-            "--data_seeds",
-            *[str(s) for s in seeds_for_plot],
-        ]
-        if correct_only_sr:
-            cmd.extend(["--correct_only_sr", "--baseline_model_type", f"{model_id_fs}_full_precision"])
         print(f"[PlotOnly] plotting {plot_output_name} (seeds={seeds_for_plot}) ...")
-        ret = subprocess.run(cmd, cwd=str(ba_dir), timeout=300)
-        if ret.returncode == 0:
+        rc = run_fig1(
+            dataset=dataset,
+            figure_dir=figure_dir,
+            plot_output_name=plot_output_name,
+            plot_name_with_dataset=out_suffix,
+            seeds_for_plot=seeds_for_plot,
+            eval_sr_correct_only=correct_only_sr,
+            output_base=out_base_arg,
+            baseline_model_type=f"{model_id_fs}_full_precision" if correct_only_sr else None,
+        )
+        if rc == 0:
             ok_cnt += 1
     print(f"[PlotOnly] done: {ok_cnt}/{len(methods)} methods plotted.")
     return ok_cnt
