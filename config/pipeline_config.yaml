@@ -3,7 +3,7 @@
 #   --dataset  -> syco.dataset (must be a key in syco.datasets below)
 #   --model    -> models[*].model_id (must already exist in this list)
 #   --method   -> methods[*].method  (must already exist in this list)
-#   --bits     -> weight quant width (N for WN); 必选，单次只跑该位宽
+#   --bits     -> weight quant width (N for WN); required; single bit width per run
 #   --eval     -> syco.eval_mechanistic / eval_authority_advanced / eval_behavior_prefix
 #   --gpu      -> cuda_device (cuda:N / N / N,M; mapped to CUDA_VISIBLE_DEVICES)
 
@@ -15,7 +15,7 @@ cache_root: ../cache
 save_root: ../save
 result_root: ../result
 
-# 校准/评测数据自动下载开关；为 false 时需指向已存在的本地数据目录
+# Auto-download calib/eval data; when false, point to existing local data dirs
 calib_auto_download: true
 eval_auto_download: true
 calib_root: ..
@@ -25,7 +25,7 @@ eval_root: ..
 llmc_dir: ../quantization/LightCompress
 syco_repo_dir: ../evaluation/LLM-sycophancy
 
-# Models 候选池：CLI --model 必须命中其中一个 model_id
+# Model pool: CLI --model must match one model_id
 models:
   - model_id: llama_3.1_8b_instruct
     path: meta-llama/Llama-3.1-8B-Instruct
@@ -49,8 +49,8 @@ models:
     path: google/gemma-2-9b-it
     type: Gemma2
 
-# Methods 候选池：CLI --method 必须命中其中一个 method 名。
-# 位宽由 CLI --bits 指定；若 yaml 写了 method_id（须带 _wN 后缀），N 必须与 --bits 一致。
+# Method pool: CLI --method must match one method name.
+# Bit width from CLI --bits; if yaml sets method_id (must end with _wN), N must match --bits.
 methods:
   - method: GPTQ
   - method: Awq
@@ -71,8 +71,8 @@ methods:
 # LightCompress torchrun
 nproc_per_node: 1
 
-# Sycophancy 评估通用字段（不受 CLI 控制）。
-# syco.datasets 是按 --dataset 选定的 per-dataset 字段表；命中的子项会被合并到 syco 顶层。
+# Sycophancy eval fields (not overridden by CLI).
+# syco.datasets is per-dataset; selected entry merged onto syco top-level.
 syco:
   datasets:
     mmlu:
@@ -92,24 +92,24 @@ syco:
   academic_level: ""
   full_question_column: full_question
   max_retries: 1
-  answer_max_new_tokens: 0  # 先生成 N 个 token 再提取选项字母；0=仅 argmax+decode
-  # Hugging Face Hub token（gated 模型等）。设为 null 时不写入子进程环境，请自行 export HF_TOKEN / HUGGING_FACE_HUB_TOKEN。
+  answer_max_new_tokens: 0  # generate N tokens before extracting option letter; 0=argmax+decode only
+  # Hugging Face Hub token (gated models, etc.). null: do not set in subprocess env; export HF_TOKEN / HUGGING_FACE_HUB_TOKEN.
   huggingface_token: null
-  # debug_inference: true   # 可选；或环境变量 RUN_SYCO_DEBUG=1
-  # 默认 run_pipeline 在「含评估」时会忽略此项，改用 CLI --data_seed_rng + --eval_avg_runs 生成 N 个种子；
-  # 仅 --skip_eval 时仍会读此处。plot-only 未传 --plot_scan_seeds 时与全流程相同，用上述两参数生成要平均的 seed。
+  # debug_inference: true   # optional; or env RUN_SYCO_DEBUG=1
+  # Default: run_pipeline ignores this when eval runs; uses CLI --data_seed_rng + --eval_avg_runs for N seeds.
+  # Only --skip_eval reads this. plot-only without --plot_scan_seeds uses the same two CLI args for averaging seeds.
   data_seed: [42]
-  # behavioral 图默认用全量样本 SR（full SR）。若需 correct-only SR，在 yaml 置 true 或 CLI 加 --eval ...,correct_only
-  # full_sr 仅当 yaml 为 true 时可用 CLI 强制恢复全量 SR（与 correct_only 互斥）
+  # Behavioral figs default to full SR. For correct-only SR, set true in yaml or CLI --eval ...,correct_only
+  # full_sr via CLI forces full SR only when yaml had eval_sr_correct_only true (mutually exclusive with correct_only)
   eval_sr_correct_only: false
   behavior_input_filename: null
-  # run_syco_logit_cot：保存每层选项 token 的 HS（与 stream_hs_dir 配合时主 pkl 不存 HS）
+  # run_syco_logit_cot: save per-layer option-token HS (main pkl omits HS when stream_hs_dir is set)
   save_option_hs: false
   # stream_hs_dir: "output_hs_stream/commonsenseqa"
 
-# Optional: 把每次 opinion_only run 的 compute_accuracy 结果聚合到 CSV
+# Optional: aggregate each opinion_only run compute_accuracy result to CSV
 aggregate_accuracy_csv: null
 
-# Optional: 评估结束后是否绘图（沿用 run_plot_phase）
+# Optional: plot after eval (run_plot_phase)
 plot_figures: true
-# figure_output_dir: null   # 覆盖默认 result_root；不设置时按 result_root/behavioral/{dataset}/
+# figure_output_dir: null   # override default result_root; default result_root/behavioral/{dataset}/

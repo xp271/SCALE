@@ -1,6 +1,6 @@
 import os
 
-# 文件路径
+# file path
 cpu_txt_path = "cpu.txt"
 
 
@@ -8,16 +8,16 @@ def modify_file(filepath, modifications):
     with open(filepath, "r") as file:
         lines = file.readlines()
 
-    # 应用修改
+    # apply edits
     new_lines = []
     for line in lines:
-        # 替换操作
+        # replace
         for search, replace in modifications["modifications"]:
             if search in line:
                 line = line.replace(search, replace)
         new_lines.append(line)
 
-    # 在文件开头插入新内容
+    # insert at file head
     with open(filepath, "w") as file:
         file.writelines(modifications["header"] + new_lines)
 
@@ -181,7 +181,7 @@ def main():
             print(f"File {file_path} not recognized or not specified for modification.")
             continue
 
-        # 修改文件
+        # modify file
         if os.path.exists(file_path):
             modify_file(file_path, modifications)
             print(f'{file_path} was modefied successfully')

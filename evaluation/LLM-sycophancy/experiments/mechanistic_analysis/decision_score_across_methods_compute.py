@@ -1,6 +1,6 @@
 """
-按 bit/method 比较 chosen_wrong 的 DS（无 matplotlib）。
-绑图：`figure/mechanistic/extras/ds_across_methods_render`.
+Compare chosen_wrong DS by bit/method (no matplotlib).
+plotting：`figure/mechanistic/extras/ds_across_methods_render`.
 """
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def _load_method_wrong_ds(pkl_path: str):
     try:
         df = pd.read_pickle(pkl_path)
     except Exception as e:
-        print(f"读取失败，跳过: {pkl_path} ({e})")
+        print(f"read failed, skipping: {pkl_path} ({e})")
         return []
     if "layer_logits" not in df.columns or "chosen_wrong_answer_index" not in df.columns:
         return []
@@ -139,7 +139,7 @@ def collect_decision_score_across_methods_curves(args: argparse.Namespace) -> tu
     """
     opinion_dir = Path(args.output_inference_root).resolve() / args.dataset / "opinion_only"
     if not opinion_dir.exists():
-        print(f"目录不存在: {opinion_dir}")
+        print(f"directory does not exist: {opinion_dir}")
         return None
 
     bit = ""
@@ -148,25 +148,25 @@ def collect_decision_score_across_methods_curves(args: argparse.Namespace) -> tu
     if args.compare_mode == "by_method":
         bit = args.bit.strip().lower()
         if not bit:
-            print("by_method 模式下必须提供 --bit。")
+            print("--bit required in by_method mode.")
             return None
         if bit not in VALID_BITS:
-            print(f"--bit 目前建议使用 {VALID_BITS}，当前为: {bit}")
+            print(f"--bit should be one of {VALID_BITS}, got: {bit}")
             return None
         quantized_paths, fp_path = _collect_candidates_by_method(opinion_dir, args.model_id, bit, args.data_seed)
     else:
         method = args.method.strip().lower()
         if not method:
-            print("by_bit 模式下必须提供 --method。")
+            print("--method required in by_bit mode.")
             return None
         quantized_paths, fp_path = _collect_candidates_by_bit(opinion_dir, args.model_id, method, args.data_seed)
         quantized_paths = dict(sorted(quantized_paths.items(), key=lambda kv: (kv[0] not in VALID_BITS, kv[0])))
 
     if not quantized_paths:
         if args.compare_mode == "by_method":
-            print(f"未找到匹配文件：model_id={args.model_id}, bit={bit}, seed={args.data_seed}。请检查 {opinion_dir}。")
+            print(f"no matching files: model_id={args.model_id}, bit={bit}, seed={args.data_seed}. Check {opinion_dir}.")
         else:
-            print(f"未找到匹配文件：model_id={args.model_id}, method={method}, seed={args.data_seed}。请检查 {opinion_dir}。")
+            print(f"no matching files: model_id={args.model_id}, method={method}, seed={args.data_seed}. Check {opinion_dir}.")
         return None
 
     default_out_plot = _build_default_output_paths(
@@ -183,7 +183,7 @@ def collect_decision_score_across_methods_curves(args: argparse.Namespace) -> tu
         pkl_path = quantized_paths[key_name]
         rows = _load_method_wrong_ds(pkl_path)
         if not rows:
-            print(f"跳过 {key_name}: 无有效 layer_logits 或 chosen_wrong_answer_index。")
+            print(f"skip {key_name}: no valid layer_logits or chosen_wrong_answer_index.")
             continue
         by = (
             pd.DataFrame(rows).groupby("layer").agg({"ds_chosen_wrong": "mean"}).reset_index().sort_values("layer")
@@ -203,12 +203,12 @@ def collect_decision_score_across_methods_curves(args: argparse.Namespace) -> tu
             ds_fp = by_fp["ds_chosen_wrong"].to_numpy()
             curves.append((layers_fp, ds_fp, "full_precision", BASELINE_COLOR))
         else:
-            print("警告: full precision 文件存在，但无可用数据，已跳过基线。")
+            print("warning: full precision file exists but no usable data; skipped baseline.")
     elif args.include_full_precision and not fp_path:
-        print("警告: 未找到 full precision 文件，已跳过基线。")
+        print("warning: full precision file not found; skipped baseline.")
 
     if not curves:
-        print("没有可绘制曲线。")
+        print("no curves to plot.")
         return None
 
     out_plot = _path_with_seed(args.out_plot, args.data_seed) if args.out_plot else default_out_plot
@@ -216,14 +216,14 @@ def collect_decision_score_across_methods_curves(args: argparse.Namespace) -> tu
 
 
 def build_ds_across_methods_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="比较 chosen_wrong_answer 的 Decision Score（同bit不同方法 / 同方法不同bit）")
+    parser = argparse.ArgumentParser(description="Compare chosen_wrong_answer Decision Score (same bit / different methods or vice versa)")
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--output_inference_root", type=str, default="output_inference")
     parser.add_argument("--model_id", type=str, required=True)
     parser.add_argument("--compare_mode", type=str, default="by_method", choices=["by_method", "by_bit"])
-    parser.add_argument("--bit", type=str, default="", help="by_method 必填")
-    parser.add_argument("--method", type=str, default="", help="by_bit 必填")
+    parser.add_argument("--bit", type=str, default="", help="required for by_method")
+    parser.add_argument("--method", type=str, default="", help="required for by_bit")
     parser.add_argument("--data_seed", type=int, default=42)
     parser.add_argument("--include_full_precision", action="store_true")
-    parser.add_argument("--out_plot", type=str, default="", help="输出图路径")
+    parser.add_argument("--out_plot", type=str, default="", help="Output figure path")
     return parser

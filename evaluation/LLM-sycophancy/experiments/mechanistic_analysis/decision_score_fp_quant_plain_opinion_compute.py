@@ -1,4 +1,4 @@
-"""FP vs 量化：四条 DS 曲线的数据收集（correct / chosen wrong）。绑图见 ``fp_quant_ds_render``."""
+"""FP vs quant: four DS curves (correct / chosen wrong). Plotting: ``fp_quant_ds_render``."""
 from __future__ import annotations
 
 import argparse
@@ -40,7 +40,7 @@ def _load_ds_for_letter_column(pkl_path: str, letter_column: str):
     try:
         df = pd.read_pickle(pkl_path)
     except Exception as e:
-        print(f"读取失败: {pkl_path} ({e})")
+        print(f"read failed: {pkl_path} ({e})")
         return []
     if "layer_logits" not in df.columns or letter_column not in df.columns:
         return []
@@ -95,7 +95,7 @@ def _load_plain_ds_chosen_wrong_aligned(plain_pkl: str, opinion_pkl: str) -> lis
         df_p = pd.read_pickle(plain_pkl)
         df_o = pd.read_pickle(opinion_pkl)
     except Exception as e:
-        print(f"读取失败: plain={plain_pkl} opinion={opinion_pkl} ({e})")
+        print(f"read failed: plain={plain_pkl} opinion={opinion_pkl} ({e})")
         return []
     if "layer_logits" not in df_p.columns:
         return []
@@ -107,8 +107,8 @@ def _load_plain_ds_chosen_wrong_aligned(plain_pkl: str, opinion_pkl: str) -> lis
     if used_align:
         n_ok = wrong_series.notna().sum()
         print(
-            f"[chosen_wrong·plain] 自 opinion 对齐错选项字母: {plain_pkl} ← {opinion_pkl} "
-            f"（{int(n_ok)}/{len(df_p)} 行有映射）"
+            f"[chosen_wrong·plain] wrong option letters from opinion: {plain_pkl} ← {opinion_pkl} "
+            f"({int(n_ok)}/{len(df_p)} rows mapped)"
         )
 
     rows: list[dict] = []
@@ -198,11 +198,11 @@ def collect_fp_quant_ds_series(
     }
     missing = [k for k, p in paths.items() if p is None]
     if missing:
-        print("缺少以下 pkl（请检查目录与文件名）：")
+        print("missing pkls (check dirs and filenames):")
         for k in missing:
             sub = opinion_dir if k.endswith("_opinion") else plain_dir
             stem = fp_stem if k.startswith("fp") else q_stem
-            print(f"  [{k}] 期望 {sub}/{stem}.pkl")
+            print(f"  [{k}] expected {sub}/{stem}.pkl")
         return None
 
     method_u = args.method.strip().lower()
@@ -220,7 +220,7 @@ def collect_fp_quant_ds_series(
         rows = _load_ds_for_letter_column(str(pkl_path), "correct_answer_index")
         curve = _mean_ds_by_layer(rows)
         if curve is None:
-            print(f"无可用 layer_logits 数据: {pkl_path} (correct_answer_index)")
+            print(f"no usable layer_logits: {pkl_path} (correct_answer_index)")
             return None
         layers, ds_vals = curve
         series_correct.append((layers, ds_vals, legend, color, ls))
@@ -235,13 +235,13 @@ def collect_fp_quant_ds_series(
     for legend, p_plain_or_main, p_op_partner, color, ls, is_plain_branch in items_w:
         if is_plain_branch:
             rows = _load_plain_ds_chosen_wrong_aligned(str(p_plain_or_main), str(p_op_partner))
-            tag = f"{p_plain_or_main} (chosen_wrong 对齐 {p_op_partner})"
+            tag = f"{p_plain_or_main} (chosen_wrong aligned to {p_op_partner})"
         else:
             rows = _load_ds_for_letter_column(str(p_plain_or_main), "chosen_wrong_answer_index")
             tag = str(p_plain_or_main)
         curve = _mean_ds_by_layer(rows)
         if curve is None:
-            print(f"无可用 chosen_wrong DS 数据: {tag}")
+            print(f"no usable chosen_wrong DS data: {tag}")
             return None
         layers, ds_vals = curve
         series_wrong.append((layers, ds_vals, legend, color, ls))
@@ -255,7 +255,7 @@ def collect_fp_quant_ds_series(
 
 
 def build_fp_quant_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="FP vs 指定量化：plain/opinion DS（正确选项 & chosen wrong）")
+    parser = argparse.ArgumentParser(description="FP vs specified quant: plain/opinion DS (correct option & chosen wrong)")
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--output_inference_root", type=str, default="output_inference")
     parser.add_argument("--model_id", type=str, required=True)

@@ -1,4 +1,4 @@
-"""主 KL（plain vs opinion / 目录模式 / quant vs FP）CLI。运行：``python -m figure.mechanistic.kl_plot``。"""
+"""Main KL CLI (plain vs opinion / dir mode / quant vs FP). Run: ``python -m figure.mechanistic.kl_plot``.""
 from __future__ import annotations
 
 import argparse
@@ -11,41 +11,41 @@ def build_plot_kl_arg_parser() -> argparse.ArgumentParser:
     prepend_mech_syspath()
     from kl_divergence_compute import DEFAULT_MODEL_KEY
 
-    parser = argparse.ArgumentParser(description="画 Layer-wise KL Divergence（Plain vs Opinion）")
-    parser.add_argument("--plain", type=str, nargs="+", default=None, help="plain 的 .pkl 列表")
-    parser.add_argument("--opinion", type=str, nargs="+", default=None, help="opinion_only 的 .pkl 列表")
-    parser.add_argument("--plain_dir", type=str, default=None, help="plain 目录，与 --opinion_dir 成对使用")
-    parser.add_argument("--opinion_dir", type=str, default=None, help="opinion_only 目录")
-    parser.add_argument("--dataset", type=str, default=None, help="自动发现模式：数据集名，如 mmlu/commonsenseqa")
-    parser.add_argument("--model_id", "--model", dest="model_id", type=str, default=None, help="自动发现模式：模型标识")
-    parser.add_argument("--method", type=str, default=None, help="自动发现模式：量化方法，如 awq/gptq/hqq/rtn")
-    parser.add_argument("--bit", type=str, default=None, help="自动发现模式：量化精度，如 w4/w6/w8；传入后绘制不同 method")
+    parser = argparse.ArgumentParser(description="Plot layer-wise KL divergence (Plain vs Opinion)")
+    parser.add_argument("--plain", type=str, nargs="+", default=None, help="List of plain .pkl files")
+    parser.add_argument("--opinion", type=str, nargs="+", default=None, help="List of opinion_only .pkl files")
+    parser.add_argument("--plain_dir", type=str, default=None, help="Plain directory; use with --opinion_dir")
+    parser.add_argument("--opinion_dir", type=str, default=None, help="opinion_only directory")
+    parser.add_argument("--dataset", type=str, default=None, help="Auto-discovery: dataset name, e.g. mmlu/commonsenseqa")
+    parser.add_argument("--model_id", "--model", dest="model_id", type=str, default=None, help="Auto-discovery: model id")
+    parser.add_argument("--method", type=str, default=None, help="Auto-discovery: quant method, e.g. awq/gptq/hqq/rtn")
+    parser.add_argument("--bit", type=str, default=None, help="Auto-discovery: quant bit width w4/w6/w8; plots different methods")
     parser.add_argument(
         "--output_inference_root",
         type=str,
         default="output_inference",
-        help="自动发现模式：output_inference 根目录，默认 output_inference",
+        help="Auto-discovery: output_inference root (default output_inference)",
     )
-    parser.add_argument("--out_plot", type=str, default="kl_divergence.png", help="输出图路径")
-    parser.add_argument("--max_rows", type=int, default=None, help="每个 pkl 最多用多少行（用于快速测试）")
+    parser.add_argument("--out_plot", type=str, default="kl_divergence.png", help="Output figure path")
+    parser.add_argument("--max_rows", type=int, default=None, help="Max rows per pkl (quick test)")
     parser.add_argument(
         "--model_key",
         type=str,
         default=DEFAULT_MODEL_KEY,
-        help="只画文件名中含该关键词的模型；传空串画所有匹配",
+        help="Only models whose filename contains this keyword; empty string = all matches",
     )
-    parser.add_argument("--data_seed", type=int, default=None, help="数据种子后缀；输出图会带 _${seed} 后缀")
+    parser.add_argument("--data_seed", type=int, default=None, help="Data seed suffix; output figure gets _${seed} suffix")
     parser.add_argument(
         "--data_seeds",
         type=int,
         nargs="+",
         default=None,
-        help="多个种子时对每层 KL 取平均；与 --data_seed 二选一",
+        help="Average per-layer KL over seeds; mutually exclusive with --data_seed",
     )
-    parser.add_argument("--start_layer", type=int, default=0, help="只画该层及之后（0-based）")
-    parser.add_argument("--end_layer", type=int, default=None, help="只画到该层（含）；不传则到最后一层")
-    parser.add_argument("--full_precision_plain", type=str, default=None, help="全精度 plain .pkl；与 opinion 同上则加曲线")
-    parser.add_argument("--full_precision_opinion", type=str, default=None, help="全精度 opinion_only .pkl")
+    parser.add_argument("--start_layer", type=int, default=0, help="Plot from this layer onward (0-based)")
+    parser.add_argument("--end_layer", type=int, default=None, help="Plot through this layer inclusive; default last layer")
+    parser.add_argument("--full_precision_plain", type=str, default=None, help="Full-precision plain .pkl; add curve if opinion matches")
+    parser.add_argument("--full_precision_opinion", type=str, default=None, help="Full-precision opinion_only .pkl")
     parser.add_argument("--kl_to_full_precision", action="store_true", help="KL(quantized opinion || full-precision opinion)")
     return parser
 

@@ -1,13 +1,13 @@
 """
-用 run_syco_logit_cot.py 输出的 pkl（含 layer_logits）计算 Decision Score (DS)。
+Compute Decision Score (DS) from run_syco_logit_cot.py pkls (with layer_logits).
 
-公式: DS(x) = (l_x - min(l_A,l_B,l_C,l_D)) / (max(...) - min(...) + ε), ε=1e-9
-支持 opinion_only（正确答案 + 用户声称答案）和 plain（仅正确答案）；可把 plain 与 opinion 合并画在一张图里。
+Formula: DS(x) = (l_x - min(l_A,l_B,l_C,l_D)) / (max(...) - min(...) + ε), ε=1e-9
+Supports opinion_only (correct + claimed answer) and plain (correct only); can merge plain and opinion on one plot.
 
-用法（在 experiments/mechanistic_analysis 下或 cwd 在项目根以便 import mcq_option_utils）:
+Usage (under experiments/mechanistic_analysis or cwd at repo root for mcq_option_utils):
   python compute_decision_score.py output_inference/mmlu/opinion_only/*.pkl --out_plot ds.png
   python compute_decision_score.py --plain .../plain/*.pkl --opinion .../opinion_only/*.pkl --out_plot ds_merged.png
-需画 KL 时请用仓库根目录: ``python -m figure.mechanistic.kl_plot ...``。
+For KL plots use repo root: ``python -m figure.mechanistic.kl_plot ...``.
 """
 import argparse
 import numpy as np
@@ -58,7 +58,7 @@ def compute_ds_per_layer_opinion(layer_logits: dict, correct_letter: str, syco_l
 
 
 def compute_ds_per_layer_plain(layer_logits: dict, correct_letter: str):
-    """Plain 只有正确答案，返回 list of (layer_idx, ds_correct)."""
+    """Plain has correct answer only; returns list of (layer_idx, ds_correct)."""
     if not isinstance(layer_logits, dict):
         return []
     out = []
@@ -78,8 +78,8 @@ def compute_ds_per_layer_plain(layer_logits: dict, correct_letter: str):
 
 def _load_plain_pkls(path_strs, wrong_letters_per_row=None):
     """
-    返回 list of dict with layer, ds_correct_plain, 以及（若提供 wrong_letters_per_row）ds_wrong_plain。
-    wrong_letters_per_row: list 与 plain 行一一对应，表示每题在 opinion 里的 chosen wrong 选项，用于画 Chosen Wrong (Plain)。
+    Returns list of dict with layer, ds_correct_plain, and ds_wrong_plain if wrong_letters_per_row given.
+    wrong_letters_per_row: per-row chosen wrong letter from opinion, for Chosen Wrong (Plain) plot.
     """
     correct_col = "correct_answer_index"
     rows = []
@@ -121,7 +121,7 @@ def _load_plain_pkls(path_strs, wrong_letters_per_row=None):
 
 
 def _load_opinion_pkls(path_strs):
-    """返回 list of dict with layer, ds_correct, ds_sycophantic."""
+    """Returns list of dict with layer, ds_correct, ds_sycophantic."""
     correct_col = "correct_answer_index"
     syco_col = "chosen_wrong_answer_index"
     rows = []
@@ -155,19 +155,19 @@ def compute_and_plot_decision_score(
     out_plot: str = "",
     data_seed: int | None = None,
 ) -> None:
-    """加载 pkl、打印每层均值、可选写 CSV/plot。"""
+    """Load pkl, print per-layer means, optionally write CSV/plot."""
     plain_paths = list(plain_paths or [])
     opinion_paths = list(opinion_paths or [])
     has_plain = len(plain_paths) > 0
     has_opinion = len(opinion_paths) > 0
 
     if not has_opinion and not has_plain:
-        print("请提供至少 plain 路径或 opinion 路径。")
+        print("Provide at least a plain or opinion path.")
         return
 
-    # 加载 opinion
+    # load opinion
     opinion_rows = _load_opinion_pkls(opinion_paths) if has_opinion else []
-    # 若同时有 plain 和 opinion，用 opinion 的 chosen_wrong 与 plain 按行对齐，得到 Chosen Wrong (Plain)
+    # If both plain and opinion: align chosen_wrong from opinion with plain rows for Chosen Wrong (Plain)
     wrong_per_row = None
     if has_plain and has_opinion and opinion_paths:
         first_opinion = Path(opinion_paths[0])
@@ -183,16 +183,16 @@ def compute_and_plot_decision_score(
     if has_opinion and opinion_rows:
         tbl_o = pd.DataFrame(opinion_rows)
         by_o = tbl_o.groupby("layer").agg({"ds_correct": "mean", "ds_sycophantic": "mean"}).reset_index().sort_values("layer")
-        print("Decision Score 每层均值 (Opinion):")
+        print("Decision Score per-layer mean (Opinion):")
         print(by_o.to_string(index=False))
     if has_plain and plain_rows:
         tbl_p = pd.DataFrame(plain_rows)
         by_p = tbl_p.groupby("layer").agg({"ds_correct_plain": "mean"}).reset_index().sort_values("layer")
         if "ds_wrong_plain" in tbl_p.columns and tbl_p["ds_wrong_plain"].notna().any():
             by_p = tbl_p.groupby("layer").agg({"ds_correct_plain": "mean", "ds_wrong_plain": "mean"}).reset_index().sort_values("layer")
-            print("Decision Score 每层均值 (Plain): Correct + Chosen Wrong (对齐 opinion 的错选项):")
+            print("Decision Score per-layer mean (Plain): Correct + Chosen Wrong (aligned to opinion wrong option):")
         else:
-            print("Decision Score 每层均值 (Plain, 仅正确):")
+            print("Decision Score per-layer mean (Plain, correct only):")
         print(by_p.to_string(index=False))
 
     def _path_with_seed(path: str, seed: int | None) -> str:
@@ -208,7 +208,7 @@ def compute_and_plot_decision_score(
         pd.DataFrame(opinion_rows).groupby("layer").agg({"ds_correct": "mean", "ds_sycophantic": "mean"}).reset_index().sort_values(
             "layer"
         ).to_csv(resolved_out_csv, index=False)
-        print(f"已保存: {resolved_out_csv}")
+        print(f"Saved: {resolved_out_csv}")
 
     if not resolved_out_plot:
         return
@@ -270,13 +270,13 @@ def compute_and_plot_decision_score(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="从 run_syco_logit_cot 输出的 pkl 计算 Decision Score，可合并 plain 与 opinion")
-    parser.add_argument("pkl_paths", type=str, nargs="*", help="opinion_only 的 .pkl（与 --opinion 二选一或同时用）")
-    parser.add_argument("--plain", type=str, nargs="+", default=None, help="plain 的 .pkl，可与 --opinion 合并画一张图")
-    parser.add_argument("--opinion", type=str, nargs="+", default=None, help="opinion_only 的 .pkl")
-    parser.add_argument("--out_csv", type=str, default="", help="可选：每层均值保存为 CSV")
-    parser.add_argument("--out_plot", type=str, default="", help="可选：图保存路径")
-    parser.add_argument("--data_seed", type=int, default=None, help="数据种子：输出 CSV/图文件名会带 _${seed} 后缀")
+    parser = argparse.ArgumentParser(description="Decision Score from run_syco_logit_cot pkls; can merge plain and opinion")
+    parser.add_argument("pkl_paths", type=str, nargs="*", help="opinion_only .pkl (with --opinion or alone)")
+    parser.add_argument("--plain", type=str, nargs="+", default=None, help="plain .pkl; can merge with --opinion on one plot")
+    parser.add_argument("--opinion", type=str, nargs="+", default=None, help="opinion_only .pkl")
+    parser.add_argument("--out_csv", type=str, default="", help="Optional: save per-layer means to CSV")
+    parser.add_argument("--out_plot", type=str, default="", help="Optional: figure output path")
+    parser.add_argument("--data_seed", type=int, default=None, help="Data seed: CSV/figure filenames get _${seed} suffix")
     args = parser.parse_args()
 
     opinion_paths = args.opinion if args.opinion is not None else args.pkl_paths

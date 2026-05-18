@@ -18,7 +18,7 @@ def run_lightcompress(
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join([str(llmc_root)] + env.get("PYTHONPATH", "").split(os.pathsep))
     if cuda_devices is not None:
-        # 只影响 LightCompress 这一步的可见 GPU
+        # Visible GPUs for this LightCompress step only
         env["CUDA_VISIBLE_DEVICES"] = str(cuda_devices)
     port = 29500 + (hash(task_id) % 30000)
     if port < 10000:

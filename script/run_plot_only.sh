@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# 只绘图：基于 save_root/behavioral 下已有 pkl，经 run_pipeline → figure.scan / figure.behavioral。
-# 须带上 --plot_scan_existing 与 --plot_scan_model_id（以及可选 --dataset 等）。
+# Plot only: existing pkls under save_root/behavioral via run_pipeline -> figure.scan / figure.behavioral.
+# Requires --plot_scan_existing and --plot_scan_model_id (optional --dataset, etc.).
 #
-# 示例：
+# Example:
 #
 #   python run_pipeline.py \
 #     --plot_scan_existing \
-#     --plot_scan_model_id mistral_7b_instruct_v0_3 \
+#     --plot_scan_model_id llama_3.1_8b_instruct \
 #     --dataset mmlu \
 #     --config config/pipeline_config.yaml
 #
-# 通过本脚本自动补上 --plot_scan_existing，其余参数原样透传：
+# This script adds --plot_scan_existing; other args pass through:
 #
 #   script/run_plot_only.sh \
-#     --plot_scan_model_id mistral_7b_instruct_v0_3 \
+#     --plot_scan_model_id llama_3.1_8b_instruct \
 #     --dataset mmlu \
 #     --config config/pipeline_config.yaml
 #

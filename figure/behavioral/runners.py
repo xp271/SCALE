@@ -1,4 +1,4 @@
-"""Pipeline entrypoints：行为图 Fig1 / Fig2."""
+"""Pipeline entrypoints: behavioral Fig1 / Fig2."""
 from __future__ import annotations
 
 import os

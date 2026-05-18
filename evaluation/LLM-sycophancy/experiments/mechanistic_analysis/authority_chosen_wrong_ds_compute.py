@@ -1,4 +1,4 @@
-"""Authority 档位 chosen_wrong DS 聚合（纯计算）；绑图见 ``authority_ds_render``."""
+"""Authority-level chosen_wrong DS aggregation (compute-only). Plotting: ``authority_ds_render``."""
 from __future__ import annotations
 
 import argparse
@@ -33,11 +33,11 @@ def load_chosen_wrong_rows(pkl_path: Path):
     try:
         df = pd.read_pickle(pkl_path)
     except Exception as e:
-        print(f"读取失败，跳过: {pkl_path} ({e})")
+        print(f"read failed, skipping: {pkl_path} ({e})")
         return []
 
     if "layer_logits" not in df.columns or "chosen_wrong_answer_index" not in df.columns:
-        print(f"缺少列，跳过: {pkl_path}")
+        print(f"missing columns, skipping: {pkl_path}")
         return []
 
     rows = []
@@ -75,12 +75,12 @@ def collect_authority_ds_curves(
             / f"{args.model_output_name}_logit_all_{args.data_seed}.pkl"
         )
         if not pkl_path.exists():
-            print(f"文件不存在，跳过 {level}: {pkl_path}")
+            print(f"file missing, skipping {level}: {pkl_path}")
             continue
 
         rows = load_chosen_wrong_rows(pkl_path)
         if not rows:
-            print(f"无可用数据，跳过 {level}: {pkl_path}")
+            print(f"no usable data, skipping {level}: {pkl_path}")
             continue
 
         by = pd.DataFrame(rows).groupby("layer").agg({"ds_chosen_wrong": "mean"}).reset_index().sort_values("layer")
@@ -89,7 +89,7 @@ def collect_authority_ds_curves(
         curves.append((level, layers, ds_vals))
 
     if not curves:
-        print("没有可绘制曲线。")
+        print("no curves to plot.")
         return None
 
     out_plot = args.out_plot.strip() or build_default_authority_out_plot(args.dataset, args.data_seed)
@@ -97,7 +97,7 @@ def collect_authority_ds_curves(
 
 
 def build_authority_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="authority 三档 chosen_wrong DS")
+    parser = argparse.ArgumentParser(description="authority three-level chosen_wrong DS")
     parser.add_argument("--dataset", type=str, default="mmlu")
     parser.add_argument("--output_inference_root", type=str, default="output_inference")
     parser.add_argument("--model_output_name", type=str, default="llama_3.1_8b_instruct_rtn_w4")

@@ -1,4 +1,4 @@
-"""聚合行为图数据并触发绑图。"""
+"""Aggregate behavioral figure data and trigger plotting."""
 from __future__ import annotations
 
 import argparse
@@ -17,7 +17,7 @@ from figure.behavioral.render_behavioral import save_figure1, save_figure2
 
 
 def plot_behavioral_figures(args: Any) -> None:
-    """参数与历史上的 plot_figure2 CLI 等价（Namespace/SimpleNamespace）。"""
+    """Args equivalent to legacy plot_figure2 CLI (Namespace/SimpleNamespace)."""
     draw_fig1 = args.which in ("both", "fig1")
     draw_fig2 = args.which in ("both", "fig2")
     data_seed = args.data_seed
@@ -28,7 +28,7 @@ def plot_behavioral_figures(args: Any) -> None:
     if data_seeds is not None and data_seed is not None:
         data_seed = None
     if correct_only_sr and draw_fig1 and not baseline_model_type:
-        raise ValueError("启用 correct_only_sr 时必须提供 baseline_model_type")
+        raise ValueError("baseline_model_type required when correct_only_sr is enabled")
 
     base = os.path.abspath(str(args.output_base))
     dirs_fig1, dirs_fig2 = output_dirs_for_dataset(args.dataset_subdir)
@@ -62,9 +62,9 @@ def plot_behavioral_figures(args: Any) -> None:
     if data_seeds:
         plain_list, opinion_list, fig2_list = _collect_metrics_over_seeds(data_seeds, draw_fig1, draw_fig2)
         if draw_fig1 and (not plain_list or not opinion_list):
-            raise FileNotFoundError(f"未找到足够 fig1 数据（seeds={data_seeds}）")
+            raise FileNotFoundError(f"insufficient fig1 data (seeds={data_seeds})")
         if draw_fig2 and not all(len(fig2_list[k]) > 0 for k in dirs_fig2):
-            raise FileNotFoundError(f"未找到足够 fig2 数据（seeds={data_seeds}）")
+            raise FileNotFoundError(f"insufficient fig2 data (seeds={data_seeds})")
         plain = avg_metrics(plain_list) if draw_fig1 else None
         opinion = avg_metrics(opinion_list) if draw_fig1 else None
         if draw_fig1 and correct_only_sr:
@@ -99,7 +99,7 @@ def plot_behavioral_figures(args: Any) -> None:
                 pkl_path = find_first_pkl(os.path.join(base, subdir), args.model_type, data_seed)
                 if not pkl_path:
                     raise FileNotFoundError(
-                        f"未找到 {level} pkl（目录 {os.path.join(base, subdir)}"
+                        f"missing {level} pkl (dir {os.path.join(base, subdir)}"
                         + (f", model_type={args.model_type}" if args.model_type else "")
                         + "）"
                     )
@@ -118,22 +118,22 @@ def plot_behavioral_figures(args: Any) -> None:
             for level in LABELS_ACADEMIC_LEVEL:
                 m = get_metrics(fig2_pkls[level.lower()])
                 if m is None:
-                    raise FileNotFoundError(f"无法从 {fig2_pkls[level.lower()]} 计算指标")
+                    raise FileNotFoundError(f"cannot compute metrics from {fig2_pkls[level.lower()]}")
                 fig2_metrics.append(m)
 
     if draw_fig1:
         if correct_only_sr:
             if opinion_correct_only is None:
-                raise FileNotFoundError("无法计算 correct_only SR（请检查 plain/opinion pkl 与 baseline 是否匹配）")
+                raise FileNotFoundError("cannot compute correct_only SR (check plain/opinion pkls and baseline match)")
         else:
             if plain is None:
-                raise FileNotFoundError("无法计算 plain 指标（缺列或无有效预测）")
+                raise FileNotFoundError("cannot compute plain metrics (missing columns or no valid predictions)")
             if opinion is None:
-                raise FileNotFoundError("无法计算 opinion 指标")
+                raise FileNotFoundError("cannot compute opinion metrics")
     if draw_fig2 and not data_seeds and len(fig2_metrics) == 3:
         same = fig2_metrics[0] == fig2_metrics[1] == fig2_metrics[2]
         if same:
-            print("  [警告] Beginner / Intermediate / Advanced 三项指标完全相同，请确认 output 下三个目录的 pkl 是否由不同输入生成。")
+            print("  [warning] Beginner / Intermediate / Advanced metrics are identical; confirm pkls under output dirs came from different inputs.")
 
     if draw_fig1:
         save_figure1(
@@ -160,17 +160,17 @@ def plot_behavioral_figures(args: Any) -> None:
 
 
 def build_behavioral_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="画 Figure 2 风格图（Plain vs Opinion；Advanced First-pov）")
-    parser.add_argument("--model_type", type=str, default=None, help="模型关键词：对 pkl 文件名做部分匹配（不区分大小写）")
-    parser.add_argument("--which", type=str, default="both", choices=["both", "fig1", "fig2"], help="画哪张图")
-    parser.add_argument("--figure_dir", type=str, default="figure", help="图保存目录")
-    parser.add_argument("--output_base", type=str, default="output", help="output 根目录")
-    parser.add_argument("--dataset_subdir", type=str, default="mmlu", help="output/ 下第一级子目录")
-    parser.add_argument("--data_seed", type=int, default=None, help="单种子")
-    parser.add_argument("--data_seeds", type=int, nargs="+", default=None, help="多种子取平均")
-    parser.add_argument("--output_suffix", type=str, default=None, help="输出文件名后缀")
-    parser.add_argument("--correct_only_sr", action="store_true", help="correct-only SR 模式")
-    parser.add_argument("--baseline_model_type", type=str, default=None, help="baseline 模型关键词（correct_only）")
+    parser = argparse.ArgumentParser(description="Plot Figure-2 style charts (Plain vs Opinion; Advanced First-pov)")
+    parser.add_argument("--model_type", type=str, default=None, help="Model keyword: partial match on pkl filename (case-insensitive)")
+    parser.add_argument("--which", type=str, default="both", choices=["both", "fig1", "fig2"], help="Which figure to plot")
+    parser.add_argument("--figure_dir", type=str, default="figure", help="Figure output directory")
+    parser.add_argument("--output_base", type=str, default="output", help="output root directory")
+    parser.add_argument("--dataset_subdir", type=str, default="mmlu", help="First-level subdir under output/")
+    parser.add_argument("--data_seed", type=int, default=None, help="Single seed")
+    parser.add_argument("--data_seeds", type=int, nargs="+", default=None, help="Average over multiple seeds")
+    parser.add_argument("--output_suffix", type=str, default=None, help="Output filename suffix")
+    parser.add_argument("--correct_only_sr", action="store_true", help="correct-only SR mode")
+    parser.add_argument("--baseline_model_type", type=str, default=None, help="Baseline model keyword (correct_only)")
     return parser
 
 

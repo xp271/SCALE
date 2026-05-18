@@ -170,21 +170,21 @@ def random_prefix(prefix_df, category, fallback_prefix=None):
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="应用前缀并生成增强数据")
+    parser = argparse.ArgumentParser(description="Apply prefixes and build augmented data")
     parser.add_argument(
         "--raw_file",
         type=str,
         default=os.path.join("raw_data", "mmlu_raw.pkl"),
-        help="原始数据 pkl；相对路径时相对于 experiments/data_generation/",
+        help="Raw data pkl; relative paths are under experiments/data_generation/",
     )
     parser.add_argument(
         "--prefix_dir",
         type=str,
         default=DEFAULT_PREFIXMY_DIR,
-        help=f"前缀 pkl 目录（默认仓库根下 prefixmy: {DEFAULT_PREFIXMY_DIR}）",
+        help=f"Prefix pkl directory (default prefixmy under repo root: {DEFAULT_PREFIXMY_DIR})",
     )
-    parser.add_argument("--output_dir", type=str, default="outputmy/mmlu", help="输出目录")
-    parser.add_argument("--seed", type=int, default=42, help="随机种子，用于复现")
+    parser.add_argument("--output_dir", type=str, default="outputmy/mmlu", help="Output directory")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     args = parser.parse_args()
     random.seed(args.seed)
 
@@ -215,7 +215,7 @@ if __name__ == "__main__":
 
     for level, prefix_file in prefix_files.items():
         if not os.path.exists(prefix_file):
-            print(f"跳过 {level}: 未找到 {prefix_file}，请先用相同 seed 运行 generate_prefixes.py")
+            print(f"skip {level}: not found {prefix_file}; run generate_prefixes.py with the same seed first")
             continue
         prefix_df = pd.read_pickle(prefix_file)
 

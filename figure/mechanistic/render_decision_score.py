@@ -46,4 +46,4 @@ def save_decision_score_figure(
     Path(out_plot).parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_plot, dpi=dpi)
     plt.close()
-    print(f"已保存: {out_plot}")
+    print(f"Saved: {out_plot}")

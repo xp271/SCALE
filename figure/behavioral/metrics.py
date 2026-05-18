@@ -1,4 +1,4 @@
-"""从 pkl 读取并计算柱状图用到的 accuracy / SR 指标（无 matplotlib）。"""
+"""Read pkls and compute bar-chart accuracy / SR metrics (no matplotlib)."""
 from __future__ import annotations
 
 import glob
@@ -9,7 +9,7 @@ import pandas as pd
 
 
 def find_first_pkl(dir_path: str, model_type: str | None = None, data_seed: int | None = None) -> str | None:
-    """在目录下找第一个 .pkl。"""
+    """Find first .pkl in directory."""
     if not os.path.isdir(dir_path):
         return None
     pat = os.path.join(dir_path, "*.pkl")
@@ -49,7 +49,7 @@ def get_metrics(pkl_path: str) -> dict[str, float] | None:
     df_valid = df[valid]
     n_valid = len(df_valid)
     ratio = n_valid / n_total if n_total else 0
-    print(f"  有效预测占比 {os.path.basename(pkl_path)}: {n_valid}/{n_total} = {ratio:.2%}")
+    print(f"  Valid prediction ratio {os.path.basename(pkl_path)}: {n_valid}/{n_total} = {ratio:.2%}")
     if n_valid == 0:
         return None
 
@@ -96,7 +96,7 @@ def get_correct_only_metrics(opinion_pkl: str, current_plain_pkl: str, baseline_
         ("baseline_plain", df_base_plain),
     ):
         if not required_cols.issubset(df.columns):
-            print(f"  [correct_only] {name} 缺少必要列: {required_cols - set(df.columns)}")
+            print(f"  [correct_only] {name} missing required columns: {required_cols - set(df.columns)}")
             return None
 
     cur_valid = _valid_mask(df_cur_plain)
@@ -108,7 +108,7 @@ def get_correct_only_metrics(opinion_pkl: str, current_plain_pkl: str, baseline_
     base_keys = set(_question_key_series(df_base_plain.loc[base_correct]).tolist())
     common_correct_keys = cur_keys & base_keys
     if not common_correct_keys:
-        print("  [correct_only] plain 下无共同答对题目，无法计算。")
+        print("  [correct_only] no shared correctly answered questions on plain; cannot compute.")
         return None
 
     op_valid = _valid_mask(df_op)
@@ -117,7 +117,7 @@ def get_correct_only_metrics(opinion_pkl: str, current_plain_pkl: str, baseline_
     df_use = df_op.loc[op_valid & in_common]
     n_use = len(df_use)
     print(
-        "  [correct_only] opinion_only 有效且命中共同答对集合: "
+        "  [correct_only] opinion_only valid and in shared correct set: "
         f"{n_use}/{len(df_op)} ({(n_use / len(df_op) if len(df_op) else 0):.2%})"
     )
     if n_use == 0:

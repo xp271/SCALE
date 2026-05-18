@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """CLI-driven thin entry: LightCompress -> LLM-sycophancy eval -> figures.
 
-CLI 必填：``--dataset``、``--model``、``--method``、``--bits``、``--gpu``；跑评估时还需 ``--eval``
-（``--skip_eval`` 时可省略 ``--eval``）。其余默认见 [config/pipeline_config.yaml](config/pipeline_config.yaml)。
+Required CLI: ``--dataset``, ``--model``, ``--method``, ``--bits``, ``--gpu``; also ``--eval`` when running eval
+(omit ``--eval`` with ``--skip_eval``). Other defaults in [config/pipeline_config.yaml](config/pipeline_config.yaml).
 Use ``--plot_scan_existing`` to skip quant/eval and re-plot from existing pkls.
 
 Usage:
@@ -15,11 +15,11 @@ Usage:
         --gpu cuda:0 \\
         [--config config/pipeline_config.yaml]
 
-    behavioral 图默认 full SR；若需 correct-only，在 ``--eval`` 中加元 token ``correct_only``（须同时选
-    ``behavioral`` 等 job token），例如 ``behavioral,correct_only``。若 yaml 里开了 correct-only，可用 ``full_sr`` 强制全量 SR（与 ``correct_only`` 互斥）。
+    Behavioral figs default to full SR; for correct-only, add meta token ``correct_only`` in ``--eval`` (with
+    ``behavioral`` etc.), e.g. ``behavioral,correct_only``. If yaml has correct-only, use ``full_sr`` to force full SR (exclusive with ``correct_only``).
 
-    多 seed 评估与绘图平均：默认 ``--eval_avg_runs 3``、``--data_seed_rng 42``，由 PRNG 生成 3 个 ``data_seed``，
-    数据准备 / 评估 / 制图会对这 3 套数据各跑一遍，图里对多份 pkl 求平均。
+    Multi-seed eval and plot averaging: default ``--eval_avg_runs 3``, ``--data_seed_rng 42``; PRNG yields 3 ``data_seed`` values,
+    data prep / eval / plots run on each set; figures average across pkls.
 """
 from __future__ import annotations
 
@@ -73,14 +73,14 @@ def _handle_plot_scan_mode(
     save_root: Path,
     result_root: Path,
 ) -> None:
-    """``--plot_scan_existing`` 短路：只基于已有 pkl 绘图。"""
+    """``--plot_scan_existing`` short-circuit: plot from existing pkls only."""
     syco_cfg = cfg.get("syco", {}) or {}
     if cli.dataset:
         scan_dataset = cli.dataset
     else:
         datasets = syco_cfg.get("datasets") or {}
         if not datasets:
-            print("plot-only 模式下未指定 --dataset，且 yaml syco.datasets 为空。", file=sys.stderr)
+            print("plot-only: --dataset not set and yaml syco.datasets is empty.", file=sys.stderr)
             sys.exit(2)
         scan_dataset = next(iter(datasets))
     assert cli.plot_scan_model_id is not None
@@ -198,7 +198,7 @@ def main() -> None:
         print(f"LLM-sycophancy experiments not found at {syco_script_dir}. Set config 'syco_repo_dir'.", file=sys.stderr)
         sys.exit(1)
 
-    # 1) plot-only 短路
+    # 1) plot-only short-circuit
     if cli.plot_scan_existing:
         _handle_plot_scan_mode(
             cli, cfg,
@@ -222,7 +222,7 @@ def main() -> None:
     eval_behavior_prefix = bool(syco_args.get("eval_behavior_prefix", False))
     eval_sr_correct_only = bool(syco_args.get("eval_sr_correct_only", False))
 
-    # CLI 决定的「最大集合」jobs，再按 expanded tags 过滤
+    # Max job set from CLI, then filter by expanded tags
     eval_jobs: list[dict] = []
     if not cli.skip_eval:
         eval_jobs_all = build_syco_eval_jobs(
@@ -235,14 +235,14 @@ def main() -> None:
         eval_jobs = filter_eval_jobs_by_tags(eval_jobs_all, eval_job_tags)
         if not eval_jobs:
             print(
-                f"--eval {cli.eval_modes} 用于 job 过滤的标签为 {sorted(eval_job_tags)} 后无可执行的 job。请检查 token 拼写。",
+                f"--eval {cli.eval_modes}: no jobs left after filtering by {sorted(eval_job_tags)}. Check token spelling.",
                 file=sys.stderr,
             )
             sys.exit(2)
 
     nproc = cfg.get("nproc_per_node", 1)
     quant_cuda_visible = normalize_gpu(cli.gpu) if cli.gpu else None
-    # CUDA_VISIBLE_DEVICES 限定时子进程内首张卡为 cuda:0
+    # With CUDA_VISIBLE_DEVICES set, first visible device is cuda:0 in subprocesses
     syco_device = "cuda:0" if quant_cuda_visible is not None else syco_args.get("device", "cuda:0")
     base_seed = 42
     aggregate_csv = cfg.get("aggregate_accuracy_csv")
@@ -255,16 +255,16 @@ def main() -> None:
         if seeds_nonone:
             print(
                 f"[data_seed] --data_seed_rng={cli.data_seed_rng} --eval_avg_runs={cli.eval_avg_runs} "
-                f"→ 本次评估 {len(seeds_nonone)} 个数据集种子: {seeds_nonone}"
+                f"→ this eval uses {len(seeds_nonone)} dataset seed(s): {seeds_nonone}"
             )
 
-    # 2) 确保所需 seed 的 lib/*.pkl 与 Academic 三档输入齐备（仅评估阶段需要）
+    # 2) Ensure lib/*.pkl and Academic three-level inputs per seed (eval only)
     if not cli.skip_eval:
         for s in data_seeds:
             if s is None:
                 continue
             if not ensure_syco_data_for_seed(syco_repo, s, syco_args):
-                print(f"无法为 data_seed={s} 准备数据，退出", file=sys.stderr)
+                print(f"cannot prepare data for data_seed={s}, exiting", file=sys.stderr)
                 sys.exit(1)
             if eval_authority_advanced and not verify_academic_three_levels(syco_repo, data_slug, s):
                 sys.exit(1)
@@ -279,13 +279,13 @@ def main() -> None:
     models = cfg.get("models") or []
     methods = cfg.get("methods") or []
     if not models or not methods:
-        print("窄化后的 cfg 缺少 models / methods。退出。", file=sys.stderr)
+        print("narrowed cfg missing models / methods. Exiting.", file=sys.stderr)
         sys.exit(2)
 
     accuracy_rows: list[dict] = []
     completed_combos: list[tuple[str, str]] = []
 
-    # 3) FP 评估：先对该模型在 full_precision 下跑一遍（skip_eval 时直接跳）
+    # 3) FP eval: run full_precision once for this model (skipped if skip_eval)
     model = models[0]
     model_id = model["model_id"]
     model_id_fs = fs_safe_label(model_id)
@@ -314,7 +314,7 @@ def main() -> None:
         accuracy_rows.extend(rows)
         completed_combos.append((model_id_fs, method_id_fp))
 
-    # 4) 量化 + 评估
+    # 4) Quantization + eval
     assert cli.weight_bits is not None
     try:
         method_combos = [resolve_method_quant_combo(methods[0], cli.weight_bits)]
@@ -378,7 +378,7 @@ def main() -> None:
             w.writerows(accuracy_rows)
         print(f"Wrote {len(accuracy_rows)} rows to {csv_path}")
 
-    # 6) 绘图阶段（CLI --skip_plot 或 yaml plot_figures=false 时跳过）
+    # 6) Plot phase (skipped if CLI --skip_plot or yaml plot_figures=false)
     if cli.skip_plot:
         plot_figures = False
     if plot_figures and completed_combos:

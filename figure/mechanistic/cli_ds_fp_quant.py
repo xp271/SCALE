@@ -1,4 +1,4 @@
-"""手稿：FP vs 量化四条 DS（correct / chosen wrong）。``python -m figure.mechanistic.cli_ds_fp_quant``"""
+"""Manuscript: FP vs quant four DS curves (correct / chosen wrong). ``python -m figure.mechanistic.cli_ds_fp_quant``"""
 from __future__ import annotations
 
 import sys

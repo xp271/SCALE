@@ -113,13 +113,13 @@ def cluster_dpc_knn(x, cluster_num, k=5, token_mask=None):
 
 
 def refine_clusters(cluster_idx):
-    """根据给定的聚类结果，对每个批次进行精炼处理。
+    """Refine each batch from clustering results.
 
     Args:
-        cluster_idx: Tensor of shape (B, N)，每个元素是聚类的索引。
+        cluster_idx: Tensor (B, N), cluster index per element.
 
     Returns:
-        refined_cluster_idx: Tensor of shape (B, N)，精炼后的聚类结果。
+        refined_cluster_idx: Tensor (B, N), refined clusters.
     """
     import torch
 
@@ -128,12 +128,12 @@ def refine_clusters(cluster_idx):
     for b in range(B):
         clusters = torch.unique(cluster_idx[b])
         segment_info = {}
-        # 步骤1：对于每个 cluster，找到其所有的连续片段
+        # Step 1: find contiguous runs per cluster
         for cluster_label in clusters:
             indices = (cluster_idx[b] == cluster_label).nonzero(as_tuple=True)[0]
             if indices.numel() == 0:
                 continue
-            # 找到连续片段
+            # find contiguous runs
             segments = []
             start = indices[0].item()
             prev = indices[0].item()
@@ -142,50 +142,50 @@ def refine_clusters(cluster_idx):
                 if idx == prev + 1:
                     prev = idx
                 else:
-                    # 新的片段
+                    # new run
                     segments.append((start, prev))
                     start = idx
                     prev = idx
-            # 添加最后一个片段
+            # append last run
             segments.append((start, prev))
             segment_info[cluster_label.item()] = segments
 
-        # 步骤2：保留每个 cluster 中最长的片段，其余片段需要重新归类
+        # Step 2: keep longest run per cluster; reassign other runs
         for cluster_label, segments in segment_info.items():
-            # 找到最长的片段长度
+            # longest run length
             max_length = 0
             for start, end in segments:
                 length = end - start + 1
                 if length > max_length:
                     max_length = length
-            # 如果最长的片段长度为1，且只有长度为1的片段，该 cluster 需要移除
+            # if longest run length is 1 and only length-1 runs, remove cluster
             if max_length == 1:
                 for start, end in segments:
-                    refined_cluster_idx[b, start: end + 1] = -1  # -1表示需要重新归类
+                    refined_cluster_idx[b, start: end + 1] = -1  # -1 = needs reassignment
                 continue
-            # 保留最长的片段，重新归类其他片段
+            # keep longest run; reassign others
             for start, end in segments:
                 length = end - start + 1
                 if length == max_length:
-                    continue  # 保留最长的片段
+                    continue  # keep longest run
                 else:
-                    refined_cluster_idx[b, start: end + 1] = -1  # 需要重新归类
+                    refined_cluster_idx[b, start: end + 1] = -1  # needs reassignment
 
-        # 步骤3：对于需要重新归类的片段，按照左右邻居最长的片段的 cluster 进行归类
+        # Step 3: reassign runs to neighbor cluster with longer adjacent run
         idx = 0
         while idx < N:
             if refined_cluster_idx[b, idx] == -1:
-                # 找到需要重新归类的片段
+                # find runs to reassign
                 start = idx
                 while idx < N and refined_cluster_idx[b, idx] == -1:
                     idx += 1
                 end = idx - 1
-                # 找到左侧和右侧的邻居 cluster 及其片段长度
+                # find left/right neighbor clusters and run lengths
                 left_cluster_label = None
                 left_length = 0
                 if start > 0:
                     left_label = refined_cluster_idx[b, start - 1].item()
-                    # 左侧片段长度
+                    # left run length
                     l_idx = start - 1
                     while l_idx >= 0 and refined_cluster_idx[b, l_idx] == left_label:
                         l_idx -= 1
@@ -195,13 +195,13 @@ def refine_clusters(cluster_idx):
                 right_length = 0
                 if end < N - 1:
                     right_label = refined_cluster_idx[b, end + 1].item()
-                    # 右侧片段长度
+                    # right run length
                     r_idx = end + 1
                     while r_idx < N and refined_cluster_idx[b, r_idx] == right_label:
                         r_idx += 1
                     right_length = r_idx - end - 1
                     right_cluster_label = right_label
-                # 选择片段长度较长的邻居 cluster 进行归类，若长度相同，选择左侧
+                # assign to neighbor with longer run; tie-break left
                 if left_length > right_length:
                     new_label = left_cluster_label
                 elif right_length > left_length:
@@ -212,10 +212,10 @@ def refine_clusters(cluster_idx):
                         if left_cluster_label is not None
                         else right_cluster_label
                     )
-                # 如果左右邻居都不存在，默认归类为 cluster 0
+                # no neighbors: default to cluster 0
                 if new_label is None:
                     new_label = 0
-                # 重新归类
+                # reassign
                 refined_cluster_idx[b, start: end + 1] = new_label
             else:
                 idx += 1
@@ -223,19 +223,19 @@ def refine_clusters(cluster_idx):
 
 
 def segment_lengths(tensor):
-    # 获取设备信息（CPU 或 GPU）
+    # device (CPU or GPU)
     device = tensor.device
     B, N = tensor.shape
 
-    # 列表用于存储每个视频的段长度
+    # per-video segment lengths
     segment_lengths_list = []
-    max_segments = 0  # 记录最大段数
+    max_segments = 0  # max segment count
 
     for i in range(B):
         seq = tensor[i]
-        # 计算值发生变化的位置
+        # positions where value changes
         change_points = torch.where(seq[1:] != seq[:-1])[0] + 1
-        # 包含起始和结束位置
+        # include start and end
         boundaries = torch.cat(
             [
                 torch.tensor([0], device=device),
@@ -243,14 +243,14 @@ def segment_lengths(tensor):
                 torch.tensor([N], device=device),
             ]
         )
-        # 计算每个段的长度
+        # segment lengths
         lengths = boundaries[1:] - boundaries[:-1]
         segment_lengths_list.append(lengths)
         max_segments = max(max_segments, lengths.numel())
 
-    # 初始化结果张量，填充为0
+    # init result tensor with zeros
     result = torch.zeros((B, max_segments), dtype=torch.long, device=device)
-    # 将每个视频的段长度填入结果张量
+    # fill segment lengths into result
     for i in range(B):
         lengths = segment_lengths_list[i]
         result[i, : lengths.numel()] = lengths
@@ -274,32 +274,32 @@ def compute_cluster_vectors(image_key_vectors, cluster_key_idx, num_cluster):
 
     B, L, D = image_key_vectors.shape
 
-    # Step 1: 将cluster_key_idx进行one-hot编码
-    # 得到的cluster_key_idx_onehot形状为 (B, L, num_cluster)
+    # Step 1: one-hot encode cluster_key_idx
+    # cluster_key_idx_onehot shape (B, L, num_cluster)
     cluster_key_idx_onehot = F.one_hot(cluster_key_idx, num_classes=num_cluster).to(
         dtype=image_key_vectors.dtype
     )
 
-    # Step 2: 计算每个cluster的特征和
-    # 首先调整cluster_key_idx_onehot的维度，使其变为 (B, num_cluster, L)
+    # Step 2: sum features per cluster
+    # transpose cluster_key_idx_onehot to (B, num_cluster, L)
     cluster_key_idx_onehot_t = cluster_key_idx_onehot.permute(0, 2, 1)
 
-    # 然后通过矩阵乘法计算每个cluster的特征和，得到的cluster_sums形状为 (B, num_cluster, D)
+    # matmul for cluster sums (B, num_cluster, D)
     cluster_sums = torch.bmm(cluster_key_idx_onehot_t, image_key_vectors)
 
-    # Step 3: 计算每个cluster的元素数量
-    # cluster_counts形状为 (B, num_cluster)
+    # Step 3: cluster element counts
+    # cluster_counts (B, num_cluster)
     cluster_counts = cluster_key_idx_onehot.sum(dim=1)
 
-    # Step 4: 计算每个cluster的平均特征
-    # 先避免除以0，将cluster_counts中为0的值替换为1
+    # Step 4: mean features per cluster
+    # avoid div by zero: replace 0 counts with 1
     cluster_counts_nonzero = cluster_counts.clone()
     cluster_counts_nonzero[cluster_counts_nonzero == 0] = 1
 
-    # 计算平均值，结果cluster_features形状为 (B, num_cluster, D)
+    # mean; cluster_features (B, num_cluster, D)
     cluster_features = cluster_sums / cluster_counts_nonzero.unsqueeze(-1)
 
-    # Step 5: 对于没有元素的cluster，将其特征设置为0
+    # Step 5: zero features for empty clusters
     zero_mask = (cluster_counts == 0).unsqueeze(-1)  # (B, num_cluster, 1)
     cluster_features = cluster_features.masked_fill(zero_mask, 0)
 
@@ -332,22 +332,22 @@ def merge_frames_dynamic(frames, pruning_paras, k=7):
     dynamic_sizes = []
 
     start_idx = 0
-    for window_size in window_list[0]:  # 假设window_list的形状为(B, S)
-        # 获取当前window的帧
+    for window_size in window_list[0]:  # assume window_list shape (B, S)
+        # frames for current window
         current_frames = frames[:, start_idx: start_idx + window_size, :, :]  # B W L C
 
-        # 计算相似度
+        # compute similarity
         frames_normed = F.normalize(current_frames, p=2, dim=-1)
         frames_sim = einsum('b w l c, b t l c -> b w t l', frames_normed, frames_normed)
         frames_sim = (frames_sim.sum(dim=-2) - 1).sum(dim=-2) / (
             window_size * (window_size - 1)
         )  # B L
 
-        # 创建mask
+        # create mask
         mask = frames_sim > threshold
         mask_expand = mask.view(B, 1, L, 1).expand(-1, window_size, -1, C)  # B W L C
 
-        # 处理静态特征
+        # static features
         static_mask = mask_expand
         static_feat = (
             torch.masked_select(current_frames, static_mask)
@@ -361,7 +361,7 @@ def merge_frames_dynamic(frames, pruning_paras, k=7):
         static_features.append(static_feat)
         static_sizes.append(static_feat.shape[1])
 
-        # 处理动态特征
+        # dynamic features
         dynamic_mask = ~mask_expand
         dynamic_feat = torch.masked_select(current_frames, dynamic_mask).view(
             B, window_size, -1, C
@@ -384,14 +384,14 @@ def merge_frames_dynamic(frames, pruning_paras, k=7):
 
         start_idx += window_size
 
-    # 合并所有特征
+    # merge all features
     final_features = []
     for static_feature, dynamic_feature in zip(static_features, dynamic_features):
         final_features.append(static_feature)
         final_features.append(dynamic_feature)
     final_features = torch.cat(final_features, dim=1)
 
-    # window_sizes = window_list[0].tolist()  # 转换为列表形式
+    # window_sizes = window_list[0].tolist()  # as list
 
     return final_features
     # return final_features, static_sizes, dynamic_sizes, window_sizes

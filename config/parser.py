@@ -33,14 +33,14 @@ _BEHAVIORAL_TOP = "behavioral"
 _MECHANISTIC_TOP = "mechanistic"
 _LOGIT_COT_ALIAS = "logit_cot"
 
-# 顶层 token → 展开后的细粒度 tag 集合
+# Top-level token -> expanded fine-grained tag set
 _TOP_LEVEL_EXPANSION: dict[str, tuple[str, ...]] = {
     _BEHAVIORAL_TOP: ("plain", "opinion_only"),
     _MECHANISTIC_TOP: ("logit_cot_plain", "logit_cot_opinion"),
     _LOGIT_COT_ALIAS: ("logit_cot_plain", "logit_cot_opinion"),
 }
 
-# CLI 允许的细粒度 tag（job_builder 内部 tag 或 authority 这种聚合开关）
+# Fine-grained tags allowed on CLI (job_builder tags or aggregate switches like authority)
 _FINE_GRAINED: frozenset[str] = frozenset(
     {
         "plain",
@@ -52,12 +52,12 @@ _FINE_GRAINED: frozenset[str] = frozenset(
     }
 )
 
-# 仅影响绘图/统计口径（eval_sr_correct_only），不参与 job tag 过滤
+# Affects plot/stat scope only (eval_sr_correct_only); not used for job tag filtering
 _EVAL_META_TAGS: frozenset[str] = frozenset({"correct_only", "full_sr"})
 _CORRECT_ONLY_TAG = "correct_only"
 _FULL_SR_TAG = "full_sr"
 
-# 用于推导 yaml 的三个布尔
+# Used to derive three yaml booleans
 _AUTHORITY_TAG = "authority"
 _BEHAVIOR_PREFIX_TAG = "behavior_prefix"
 _MECHANISTIC_TAGS: frozenset[str] = frozenset({"logit_cot_plain", "logit_cot_opinion"})
@@ -80,16 +80,16 @@ class CliArgs:
     eval_modes: tuple[str, ...]
     gpu: str | None
     config_path: Path
-    # 阶段跳过开关
+    # Stage skip flags
     skip_eval: bool
     skip_plot: bool
-    # plot-only 分支
+    # plot-only branch
     plot_scan_existing: bool
     plot_scan_model_id: str | None
     plot_scan_seeds: str | None
     plot_scan_figure_dir: str | None
     plot_scan_correct_only: str | None
-    # 评估：多 seed 数据准备与绘图平均（--plot_scan_seeds 未给时用同一套）
+    # Eval: multi-seed data prep and plot averaging (same seeds when --plot_scan_seeds omitted)
     eval_avg_runs: int
     data_seed_rng: int
 
@@ -141,8 +141,8 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
         default=3,
         metavar="N",
         help=(
-            "评估与绘图平均用的数据 seed 个数。与 --data_seed_rng 共同决定 syco.data_seed 列表 "
-            "（仅在未 --skip_eval 时写入配置；plot-only 且无 --plot_scan_seeds 时用于选 seed）。默认 3。"
+            "Number of data seeds for eval and plot averaging. With --data_seed_rng, sets syco.data_seed "
+            "(written when not --skip_eval; plot-only without --plot_scan_seeds uses the same). Default 3."
         ),
     )
     p.add_argument(
@@ -150,7 +150,7 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
         type=int,
         default=42,
         metavar="S",
-        help="用于生成上述 N 个 data_seed 的随机数发生器种子（可复现）。默认 42。",
+        help="RNG seed for generating the N data_seeds above (reproducible). Default 42.",
     )
     p.add_argument(
         "--config",
@@ -159,7 +159,7 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
         help=f"Pipeline yaml (default: {_default_config_path()})",
     )
 
-    # 阶段跳过开关：quant-only / eval-only 用
+    # Stage skip flags: quant-only / eval-only
     p.add_argument(
         "--skip_eval",
         action="store_true",
@@ -171,7 +171,7 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
         help="Skip the plot phase. Useful for quant-only or eval-only runs.",
     )
 
-    # plot-only 短路分支
+    # plot-only short-circuit branch
     p.add_argument("--plot_scan_existing", action="store_true", help="Plot from existing pkls; skip quant/eval.")
     p.add_argument("--plot_scan_model_id", default=None, help="(plot-only) model id whose pkls to scan")
     p.add_argument("--plot_scan_seeds", default=None, help="(plot-only) explicit comma-separated data_seeds; if omitted uses --data_seed_rng + --eval_avg_runs")
@@ -206,7 +206,7 @@ def parse_cli(argv: list[str] | None = None) -> CliArgs:
             data_seed_rng=ns.data_seed_rng,
         )
 
-    # 普通运行模式：4 必填 (dataset / model / method / gpu) + bits + 1 条件必填 (--eval)
+    # Normal mode: 4 required (dataset / model / method / gpu) + bits + conditional (--eval)
     base_required = (
         ("--dataset", ns.dataset),
         ("--model", ns.model_id),
@@ -341,8 +341,8 @@ def _validate_model(cfg: dict, model_id: str, config_path: Path) -> dict:
     if not matches:
         known = [m.get("model_id") for m in models if m.get("model_id")]
         print(
-            f"--model '{model_id}' 未在 {config_path} 的 models 列表中。\n"
-            f"已配置: [{_format_known(known)}]。请在 yaml 中补一条 models 条目。",
+            f"--model '{model_id}' is not in models in {config_path}.\n"
+            f"Configured: [{_format_known(known)}]. Add a models entry in yaml.",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -355,8 +355,8 @@ def _validate_method(cfg: dict, method: str, config_path: Path) -> dict:
     if not matches:
         known = [m.get("method") for m in methods if m.get("method")]
         print(
-            f"--method '{method}' 未在 {config_path} 的 methods 列表中。\n"
-            f"已配置: [{_format_known(known)}]。请在 yaml 中补一条 methods 条目。",
+            f"--method '{method}' is not in methods in {config_path}.\n"
+            f"Configured: [{_format_known(known)}]. Add a methods entry in yaml.",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -368,8 +368,8 @@ def _validate_dataset(cfg: dict, dataset: str, config_path: Path) -> dict:
     datasets = syco_cfg.get("datasets") or {}
     if dataset not in datasets:
         print(
-            f"--dataset '{dataset}' 未在 {config_path} 的 syco.datasets 中。\n"
-            f"已配置: [{_format_known(sorted(datasets.keys()))}]。请在 yaml 中补一条 syco.datasets 条目。",
+            f"--dataset '{dataset}' is not in syco.datasets in {config_path}.\n"
+            f"Configured: [{_format_known(sorted(datasets.keys()))}]. Add a syco.datasets entry in yaml.",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -389,7 +389,7 @@ def narrow_config_for_cli(cfg: dict, cli: CliArgs) -> dict:
       when present; otherwise the yaml value is kept.
     - When not ``skip_eval``, ``syco.data_seed`` is replaced by
       :func:`utils.seeds.generate_eval_data_seeds` from ``cli.data_seed_rng`` and
-      ``cli.eval_avg_runs`` (yaml 中的列表不再使用）。
+      ``cli.eval_avg_runs`` (yaml list is ignored).
     - Top-level ``cuda_device`` is overwritten with :func:`normalize_gpu`.
 
     Validation failures call :func:`sys.exit(2)` with a friendly message.
@@ -398,12 +398,12 @@ def narrow_config_for_cli(cfg: dict, cli: CliArgs) -> dict:
     config_path = cli.config_path
 
     if cli.plot_scan_existing:
-        # plot-only：只在 dataset 给出时校验，否则随后由调用方决定取哪个 dataset
+        # plot-only: validate dataset only when provided; caller picks dataset otherwise
         if cli.dataset:
             _validate_dataset(cfg, cli.dataset, config_path)
         return cfg
 
-    assert cli.dataset and cli.model_id and cli.method  # parse_cli 已经保证
+    assert cli.dataset and cli.model_id and cli.method  # guaranteed by parse_cli
 
     model_entry = _validate_model(cfg, cli.model_id, config_path)
     method_entry = _validate_method(cfg, cli.method, config_path)

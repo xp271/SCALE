@@ -35,14 +35,14 @@ class MustDrop(TokenReductionModule):
 
             with torch.no_grad():
 
-                ws_h, ws_w = int(window_size[0]), int(window_size[1])  # 窗口尺寸,2*2
+                ws_h, ws_w = int(window_size[0]), int(window_size[1])  # window size 2x2
                 stride_h, stride_w = ws_h, ws_w
-                num_token_window = stride_h * stride_w  # 窗口内token数量,4
+                num_token_window = stride_h * stride_w  # tokens per window, 4
 
                 _, feat = (
                     feat[:, :1, :],
                     feat[:, 1:, :],
-                )  # 取出cls token之外的所有tokens,一共576个vision token
+                )  # all tokens except cls; 576 vision tokens
                 B, N, D = feat.size()
                 base_grid_H = int(math.sqrt(N))
                 base_grid_W = base_grid_H

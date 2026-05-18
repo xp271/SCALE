@@ -49,4 +49,4 @@ def save_kl_across_methods_figure(curves: list[tuple[list, list, str, str]], *, 
     Path(out_plot).parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_plot, dpi=FIG_DPI)
     plt.close()
-    print(f"已保存: {out_plot}")
+    print(f"Saved: {out_plot}")

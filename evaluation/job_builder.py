@@ -44,7 +44,7 @@ def build_behavioral_jobs(
         },
     ]
     if eval_authority_advanced:
-        # 为了支持 fig2（Beginner / Intermediate / Advanced），三档都执行
+        # Run all three levels for fig2 (Beginner / Intermediate / Advanced)
         for level in ("beginner", "intermediate", "advanced"):
             level_in = f"lib/pov/prefix/first_pov/{data_slug}_academic_opinion_{level}.pkl"
             jobs.append(
@@ -132,11 +132,11 @@ def build_syco_eval_jobs(
         eval_behavior_prefix=eval_behavior_prefix,
         behavior_input_filename=behavior_input_filename,
     )
-    # 维持原顺序：plain / opinion_only / logit_cot_* / authority_* / behavior_prefix
-    # 旧实现是在 plain/opinion 后立刻追加 mechanistic 两项再加 authority/behavior。
+    # Order: plain / opinion_only / logit_cot_* / authority_* / behavior_prefix
+    # Legacy: mechanistic jobs right after plain/opinion, then authority/behavior.
     if eval_mechanistic:
         mech = build_mechanistic_jobs(data_slug)
-        # 插到 plain+opinion 后面，authority/behavior 之前
+        # Insert after plain+opinion, before authority/behavior
         head = [j for j in jobs if j["tag"] in ("plain", "opinion_only")]
         tail = [j for j in jobs if j["tag"] not in ("plain", "opinion_only")]
         jobs = head + mech + tail

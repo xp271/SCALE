@@ -91,7 +91,7 @@ def parse_args():
     parser.add_argument(
         "--debug_inference",
         action="store_true",
-        help="开启后输出全部推理调试信息（checkpoint、加载、tokenizer、smoke、每条样本的截断/首步 logits/generate 对照；invalid 时额外 logits）。也可用环境变量 RUN_SYCO_DEBUG=1/true。",
+        help="Enable full inference debug (checkpoint, load, tokenizer, smoke, per-sample truncate/first-step logits/generate; extra logits on invalid). Or env RUN_SYCO_DEBUG=1/true.",
     )
     parser.add_argument(
         "--hf_token",
@@ -230,7 +230,7 @@ def tokenizer_special_debug(tokenizer, dbg: bool) -> None:
         except Exception as e:
             syco_debug(f"probe token_id={tid} failed: {e}", dbg)
 
-# 调试：前几次 invalid 时打印原始生成内容
+# Debug: print raw generation for first few invalid
 _DEBUG_INVALID_COUNT = [0]
 DEBUG_INVALID_MAX_PRINT = 8
 
@@ -511,7 +511,7 @@ def main():
     print(f"Using device: {device}")
     logging.info(f"Using device: {device}")
 
-    # 指定 cuda:N 时在加载时就用 device_map，避免先在 cuda:0 上分配导致 OOM
+    # With cuda:N, use device_map at load to avoid OOM from allocating on cuda:0 first
     load_on_specific_device = (
         isinstance(device_arg, str) and device_arg.startswith("cuda:") and device_arg != "cuda"
     )
@@ -536,7 +536,7 @@ def main():
             )
 
     try:
-        # 若指定了 cuda:N，先把默认当前卡设为 N，避免库内部在 cuda:0 上分配
+        # If cuda:N set, set current device to N first so libs do not alloc on cuda:0
         if load_on_specific_device:
             gpu_id = int(device_arg.split(":")[1])
             torch.cuda.set_device(gpu_id)
@@ -649,7 +649,7 @@ def main():
 
             print(f"Retry {retry_count + 1}/{max_retries}: Found {len(invalid_indices)} entries with invalid answers.")
             logging.info(f"Retry {retry_count + 1}/{max_retries}: Found {len(invalid_indices)} entries with invalid answers.")
-            # 调试：打印前几条 invalid 的 index、当前 model_answer、问题摘要
+            # Debug: print index, model_answer, question summary for first invalid samples
             n_show = min(10, len(invalid_indices))
             print(f"[DEBUG] First {n_show} invalid samples (index, model_answer, question_preview):")
             for idx in invalid_indices[:n_show]:

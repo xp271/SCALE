@@ -1,13 +1,13 @@
 """
-从 Hugging Face 下载 MMLU 数据集，并转换为 data_generation 所需格式后保存为 pkl。
-所需列: question, subject, choices (list), answer (0-based int)。
+Download MMLU from Hugging Face, convert to data_generation schema, save as pkl.
+Required columns: question, subject, choices (list), answer (0-based int).
 """
 import argparse
 import os
 
 import pandas as pd
 
-# cais/mmlu 的 57 个任务子集（不含 all / auxiliary_train）。当 config=all 因缓存/版本问题加载失败时按子集拼接。
+# 57 cais/mmlu task subsets (excl. all / auxiliary_train). Fallback per-subset load if config=all fails.
 MMLU_SUBJECTS = (
     "abstract_algebra",
     "anatomy",
@@ -92,7 +92,7 @@ def _load_dataset_kw(force_redownload: bool) -> dict:
 
 
 def iter_mmlu_items(split: str, force_redownload: bool):
-    """优先加载 all；失败则按 57 子集拼接（与 test 全量一致）。"""
+    """Try config=all first; on failure load 57 subsets (equivalent to full test)."""
     from datasets import load_dataset
 
     kw = _load_dataset_kw(force_redownload)
@@ -103,9 +103,9 @@ def iter_mmlu_items(split: str, force_redownload: bool):
         return
     except Exception as e:
         print(
-            f"警告: 无法以 config=all 加载 cais/mmlu（{type(e).__name__}: {e}）。\n"
-            "改为按 57 个子集逐一加载（结果与 all 拼接等价）。\n"
-            "可选修复: pip install -U 'datasets>=2.16' pyarrow；或清理缓存后加 --force_redownload：\n"
+            f"Warning: cannot load cais/mmlu with config=all ({type(e).__name__}: {e}).\n"
+            "Loading 57 subsets one by one (equivalent to concatenating all).\n"
+            "Optional fix: pip install -U 'datasets>=2.16' pyarrow; or clear cache and use --force_redownload:\n"
             "  rm -rf ~/.cache/huggingface/datasets/cais___mmlu*",
             flush=True,
         )
@@ -113,7 +113,7 @@ def iter_mmlu_items(split: str, force_redownload: bool):
         try:
             ds = load_dataset("cais/mmlu", subj, split=split, trust_remote_code=True, **kw)
         except Exception as e:
-            print(f"  跳过 {subj} / {split}: {e}", flush=True)
+            print(f"  skip {subj} / {split}: {e}", flush=True)
             continue
         for item in ds:
             yield item
@@ -125,29 +125,29 @@ def main():
         "--output",
         type=str,
         default="raw_data/mmlu_raw.pkl",
-        help="输出 pkl 路径，默认 raw_data/mmlu_raw.pkl（相对当前工作目录）",
+        help="Output pkl path; default raw_data/mmlu_raw.pkl (relative to cwd)",
     )
     parser.add_argument(
         "--split",
         type=str,
         default="test",
         choices=["test", "validation", "dev", "auxiliary_train"],
-        help="使用的 split，默认 test（约 1.4 万条）",
+        help="Dataset split; default test (~14k rows)",
     )
     parser.add_argument(
         "--force_redownload",
         action="store_true",
-        help="传给 datasets：强制重新下载，可修复损坏的本地元数据缓存",
+        help="Passed to datasets: force redownload; fixes corrupted local metadata cache",
     )
     args = parser.parse_args()
 
     try:
         import datasets  # noqa: F401
     except ImportError:
-        print("请先安装: pip install datasets")
+        print("Install first: pip install datasets")
         raise
 
-    print(f"正在从 Hugging Face 加载 cais/mmlu (split={args.split}) ...")
+    print(f"Loading cais/mmlu from Hugging Face (split={args.split}) ...")
 
     rows = []
     for item in iter_mmlu_items(args.split, args.force_redownload):
@@ -180,8 +180,8 @@ def main():
     out_path = args.output
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     df.to_pickle(out_path)
-    print(f"已保存 {len(df)} 条到 {os.path.abspath(out_path)}")
-    print(f"列: {list(df.columns)}")
+    print(f"Saved {len(df)} rows to {os.path.abspath(out_path)}")
+    print(f"Columns: {list(df.columns)}")
 
 
 if __name__ == "__main__":

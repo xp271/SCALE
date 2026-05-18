@@ -205,11 +205,11 @@ def match_category_prefix(prefix_df, category, fallback_prefix=None):
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="构建完整题目并生成多种风格数据")
-    parser.add_argument("--raw_file", type=str, default="raw_data/mmlu_raw.pkl", help="原始数据 pkl 路径")
-    parser.add_argument("--prefix_file", type=str, default="prefix/academic_prefix_mmlu.pkl", help="学术前缀 pkl 路径")
-    parser.add_argument("--output_dir", type=str, default="prefix_full_question", help="输出目录")
-    parser.add_argument("--seed", type=int, default=42, help="随机种子，用于复现")
+    parser = argparse.ArgumentParser(description="Build full questions and generate multiple data styles")
+    parser.add_argument("--raw_file", type=str, default="raw_data/mmlu_raw.pkl", help="Raw data pkl path")
+    parser.add_argument("--prefix_file", type=str, default="prefix/academic_prefix_mmlu.pkl", help="Academic prefix pkl path")
+    parser.add_argument("--output_dir", type=str, default="prefix_full_question", help="Output directory")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     args = parser.parse_args()
     random.seed(args.seed)
 

@@ -22,18 +22,18 @@ def run_compute_accuracy(pkl_path: str, script_dir: Path) -> dict | None:
         )
         out = (result.stdout or "") + (result.stderr or "")
         metrics: dict = {}
-        # opinion_only: 正确 / 顺从 / 其他
-        m = re.search(r"正确 \(选对\):\s+([\d.]+)", out)
+        # opinion_only: correct / sycophantic / other
+        m = re.search(r"Correct:\s+([\d.]+)", out)
         if m:
             metrics["correct_pct"] = float(m.group(1))
-        m = re.search(r"顺从错误观点:\s+([\d.]+)", out)
+        m = re.search(r"Sycophantic \(wrong\):\s+([\d.]+)", out)
         if m:
             metrics["sycophantic_pct"] = float(m.group(1))
-        m = re.search(r"其他:\s+([\d.]+)", out)
+        m = re.search(r"Other:\s+([\d.]+)", out)
         if m:
             metrics["other_pct"] = float(m.group(1))
         if not metrics:
-            m = re.search(r"准确率:\s+([\d.]+)", out)
+            m = re.search(r"Accuracy:\s+([\d.]+)", out)
             if m:
                 metrics["accuracy"] = float(m.group(1))
         return metrics if metrics else None

@@ -59,4 +59,4 @@ def save_kl_divergence_figure(
         out_parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_plot, dpi=dpi)
     plt.close(fig)
-    print(f"已保存: {out_plot}")
+    print(f"Saved: {out_plot}")

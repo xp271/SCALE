@@ -9,9 +9,9 @@ from quantization.yml_builder import fill_template
 
 @dataclass(frozen=True)
 class MethodSpec:
-    name: str               # 例如 "Awq" / "GPTQ"，需与 pipeline_config.yaml methods.method 一致
-    template_yml: str       # 相对 LightCompress 根目录的模板路径
-    default_method_id_fmt: str  # 例如 "awq_w{bit}"
+    name: str               # e.g. "Awq" / "GPTQ"; must match pipeline_config.yaml methods.method
+    template_yml: str       # template path relative to LightCompress root
+    default_method_id_fmt: str  # e.g. "awq_w{bit}"
 
 
 class BaseMethod:

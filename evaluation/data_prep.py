@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 def ensure_syco_data_for_seed(syco_repo: Path, seed: int, syco_cfg: dict) -> bool:
-    """若该 seed 对应的 plain / opinion_only pkl 不存在则下载 raw 并运行 build_lib_from_raw。"""
+    """Download raw and run build_lib_from_raw if plain / opinion_only pkls for this seed are missing."""
     dataset = syco_cfg.get("dataset", "mmlu")
     data_slug = syco_cfg.get("data_slug") or dataset
     raw_rel = syco_cfg.get("raw_file", "raw_data/mmlu_raw.pkl")
@@ -33,10 +33,10 @@ def ensure_syco_data_for_seed(syco_repo: Path, seed: int, syco_cfg: dict) -> boo
     download_script = dg_dir / download_name
     if not raw_pkl.exists():
         if not download_script.exists():
-            print(f"缺少 raw 数据且未找到 {download_script}", file=sys.stderr)
+            print(f"missing raw data and {download_script} not found", file=sys.stderr)
             return False
         raw_pkl.parent.mkdir(parents=True, exist_ok=True)
-        print(f"正在下载原始数据到 {raw_pkl}（{download_name}）...")
+        print(f"Downloading raw data to {raw_pkl} ({download_name})...")
         try:
             r = subprocess.run(
                 [sys.executable, str(download_script), "--output", str(raw_pkl)],
@@ -46,20 +46,20 @@ def ensure_syco_data_for_seed(syco_repo: Path, seed: int, syco_cfg: dict) -> boo
                 text=True,
             )
             if r.returncode != 0:
-                print(f"{download_name} 失败: {r.stderr or r.stdout}", file=sys.stderr)
+                print(f"{download_name} failed: {r.stderr or r.stdout}", file=sys.stderr)
                 return False
         except subprocess.TimeoutExpired:
-            print(f"{download_name} 超时", file=sys.stderr)
+            print(f"{download_name} timed out", file=sys.stderr)
             return False
         if not raw_pkl.exists():
-            print(f"下载后仍不存在: {raw_pkl}", file=sys.stderr)
+            print(f"still missing after download: {raw_pkl}", file=sys.stderr)
             return False
 
     build_script = dg_dir / "build_lib_from_raw.py"
     if not build_script.exists():
-        print(f"未找到 {build_script}", file=sys.stderr)
+        print(f"not found: {build_script}", file=sys.stderr)
         return False
-    print(f"正在为 seed={seed} 生成 lib plain/opinion_only（data_slug={data_slug}）...")
+    print(f"Building lib plain/opinion_only for seed={seed} (data_slug={data_slug})...")
     try:
         cmd = [
             sys.executable,
@@ -81,13 +81,13 @@ def ensure_syco_data_for_seed(syco_repo: Path, seed: int, syco_cfg: dict) -> boo
             if r.returncode != 0 and r.stderr:
                 print(r.stderr, file=sys.stderr)
             print(
-                f"生成后仍缺少 pkl: plain={plain_pkl.exists()}, opinion={opinion_pkl.exists()}",
+                f"pkls still missing after build: plain={plain_pkl.exists()}, opinion={opinion_pkl.exists()}",
                 file=sys.stderr,
             )
             return False
         return True
     except subprocess.TimeoutExpired:
-        print("build_lib_from_raw 超时", file=sys.stderr)
+        print("build_lib_from_raw timed out", file=sys.stderr)
         return False
 
 
@@ -113,14 +113,14 @@ def verify_academic_three_levels(syco_repo: Path, data_slug: str, seed: int) -> 
             names = ", ".join(p.name for p in all_glob[:12])
             more = " …" if len(all_glob) > 12 else ""
             hint = (
-                f"\n同目录下已找到（{data_slug}, seed={seed}）: {names}{more}"
-                f"\n当前要求三档文件: beginner / intermediate / advanced。"
+                f"\nFound in same dir ({data_slug}, seed={seed}): {names}{more}"
+                f"\nRequired three levels: beginner / intermediate / advanced."
             )
     miss_text = "\n".join([f"- {lvl}: {path}" for lvl, path in missing])
     print(
-        "已开启 eval_authority_advanced，但缺少 Academic 三档输入文件：\n"
+        "eval_authority_advanced is on but Academic three-level input files are missing:\n"
         f"{miss_text}\n"
-        f"请先对 seed={seed} 运行 generate_prefixes.py 与 build_lib_from_raw.py（与 build_lib_extra_args 一致）。"
+        f"Run generate_prefixes.py and build_lib_from_raw.py for seed={seed} (match build_lib_extra_args)."
         f"{hint}",
         file=sys.stderr,
     )

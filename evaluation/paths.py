@@ -13,7 +13,7 @@ def resolve_input_path(filename: str, repo_root: Path) -> str:
 
 
 def resolve_seeded_input_path(filename: str, repo_root: Path, data_seed: int | None) -> Path:
-    """按 run_syco 的规则把 data_seed 后缀插入到输入 pkl 文件名。"""
+    """Insert data_seed suffix into input pkl filename per run_syco rules."""
     p = Path(resolve_input_path(filename, repo_root))
     if data_seed is None:
         return p
@@ -30,10 +30,10 @@ def expected_syco_pkl_path(
     model_output_name: str | None = None,
     output_base_override: str | None = None,
 ) -> Path:
-    """与 run_syco.py / run_syco_logit_cot.py 的保存路径规则一致，用于不 capture_output 时推断输出路径。
+    """Match run_syco.py / run_syco_logit_cot.py save paths; infer output when not capture_output.
 
-    ``output_base_override`` 对应新增的 ``--output_base`` 参数；为 None 时使用脚本默认
-    （behavioral: ``output``；mechanistic: ``output_inference``）。
+    ``output_base_override`` is ``--output_base``; if None, script defaults apply
+    (behavioral: ``output``; mechanistic: ``output_inference``).
     """
     if model_output_name:
         basename = model_output_name

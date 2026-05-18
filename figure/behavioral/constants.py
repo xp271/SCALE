@@ -1,4 +1,4 @@
-"""文件名、配色与输出子目录语义（与 run_syco 的目录布局一致）。"""
+"""Filename, colors, and output subdir semantics (aligned with run_syco layout)."""
 from __future__ import annotations
 
 FIG1_FILENAME = "fig2_plain_vs_opinion.png"
@@ -14,7 +14,7 @@ LABELS_ACADEMIC_LEVEL = ["Beginner", "Intermediate", "Advanced"]
 
 
 def output_dirs_for_dataset(dataset_subdir: str) -> tuple[dict[str, str], dict[str, str]]:
-    """各条件对应的子目录（相对 ``output_base``）。"""
+    """Subdirs per condition (relative to ``output_base``)."""
     d = (dataset_subdir or "mmlu").strip().strip("/\\") or "mmlu"
     dirs_fig1 = {
         "plain": f"{d}/plain",

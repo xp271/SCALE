@@ -222,7 +222,7 @@ def process_question(
                 raw_output = decoded_output
             logging.debug(f"Raw model output: {raw_output}")
 
-        # Compute logits for answer selection（同时拿到所有层的 hidden_states）
+        # Compute logits for answer selection (also all-layer hidden_states)
         logging.info(f"Computing logits for index {question_index}: {prompt[:100]}...")
         with torch.no_grad():
             outputs = model(input_ids, attention_mask=attention_mask, output_hidden_states=True)
@@ -246,7 +246,7 @@ def process_question(
         total_layers = len(hidden_states) - 1  # Number of transformer layers
         layer_indices = get_layer_indices(total_layers, inference_layer)
         layer_logits = {f"layer_{i}": dict(init_logits) for i in layer_indices}
-        # Initialize layer-wise hidden states storage（只保存最后一个 token 的向量）
+        # Layer-wise hidden states storage (last token vector only)
         layer_hidden_states = {}
         layer_option_hidden_states: dict = {}
         if save_option_hs and option_tok:

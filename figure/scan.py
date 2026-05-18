@@ -16,7 +16,7 @@ from utils.paths import DIR_SYCO_SCRIPT
 
 
 def split_method_and_seed_from_stem(stem: str, model_id_fs: str) -> tuple[str | None, int | None]:
-    """从 {model_id_fs}_{method_id}[_seed].pkl 的 stem 解析 method_id 与 seed。"""
+    """Parse method_id and seed from stem of {model_id_fs}_{method_id}[_seed].pkl."""
     prefix = f"{model_id_fs}_"
     if not stem.startswith(prefix):
         return None, None
@@ -33,7 +33,7 @@ def scan_existing_methods_for_plot(
     model_id_fs: str,
     seeds: list[int] | None,
 ) -> list[str]:
-    """扫描 plain_dir 下已有 pkl，返回也在 opinion_dir 内有对应文件的 method_id 列表。"""
+    """Scan plain_dir pkls; return method_ids that also have a match in opinion_dir."""
     if not plain_dir.exists():
         return []
     methods = set()
@@ -60,11 +60,11 @@ def run_plot_from_existing_pkls(
     correct_only_sr: bool = True,
     behavioral_output_base: str | None = None,
 ) -> int:
-    """只基于已有 pkl 批量绘图（不跑量化/评测）。
+    """Batch plot from existing pkls only (no quant/eval).
 
-    ``behavioral_output_base`` 为 None 时按旧布局扫描
+    When ``behavioral_output_base`` is None, scan legacy layout
     ``LLM-sycophancy/experiments/behavioral_analysis/output/{dataset}/...``；
-    显式给出时（新布局 save_root/behavioral）按其作为扫描根。
+    When set (save_root/behavioral), use it as scan root.
     """
     ba_dir = syco_repo / DIR_SYCO_SCRIPT
     if behavioral_output_base:

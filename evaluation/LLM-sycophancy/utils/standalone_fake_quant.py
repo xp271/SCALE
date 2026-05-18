@@ -275,10 +275,10 @@ def load_model_for_fake_quant(
     missing = list(getattr(incompatible, "missing_keys", []))
     unexpected = list(getattr(incompatible, "unexpected_keys", []))
 
-    # HuggingFace CausalLM 常在 tie_word_embeddings=True 时只存一份矩阵；LightCompress 导出的
-    # fake_quant 往往只有 model.embed_tokens.weight，没有 lm_head.weight。load 会报 missing，
-    # 且若不重新 tie，lm_head 仍指向加载前的张量，与已覆盖的 embedding 脱钩。
-    # 缺省与 HF modeling_utils.tie_embeddings_and_encoder_decoder 一致：未写 config 时视为 True
+    # HuggingFace CausalLM often stores one matrix when tie_word_embeddings=True; LightCompress export
+    # fake_quant often has only model.embed_tokens.weight, not lm_head.weight. load reports missing,
+    # without re-tie, lm_head still points at pre-load tensor, detached from updated embedding.
+    # Default matches HF tie_embeddings_and_encoder_decoder: True when config omits it
     tie_emb = getattr(model.config, "tie_word_embeddings", True)
     if hasattr(model.config, "get_text_config"):
         try:

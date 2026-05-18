@@ -56,4 +56,4 @@ def save_authority_ds_figure(curves: list[tuple[str, np.ndarray, np.ndarray]], *
     Path(out_plot).parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_plot, dpi=FIG_DPI)
     plt.close()
-    print(f"已保存: {out_plot}")
+    print(f"Saved: {out_plot}")

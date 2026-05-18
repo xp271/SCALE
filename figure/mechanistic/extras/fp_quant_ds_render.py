@@ -49,4 +49,4 @@ def save_fp_quant_four_line_ds(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_path, dpi=FIG_DPI)
     plt.close()
-    print(f"已保存: {out_path}")
+    print(f"Saved: {out_path}")

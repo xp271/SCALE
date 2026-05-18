@@ -1,4 +1,4 @@
-"""比较 KL(Opinion||Plain)：同数据集下按 method/bit 对齐（纯计算）。绑图见 ``kl_across_methods_render``。"""
+"""Compare KL(Opinion||Plain) aligned by method/bit (compute-only). Plotting: ``kl_across_methods_render``."""
 from __future__ import annotations
 
 import argparse
@@ -14,7 +14,7 @@ def _safe_read_pickle(path_str: str):
     try:
         return pd.read_pickle(path_str)
     except Exception as e:
-        print(f"读取失败，跳过: {path_str} ({e})")
+        print(f"read failed, skipping: {path_str} ({e})")
         return None
 
 
@@ -88,22 +88,22 @@ def collect_kl_divergence_across_methods_curves(
     plain_dir = Path(args.output_inference_root).resolve() / args.dataset / "plain"
     opinion_dir = Path(args.output_inference_root).resolve() / args.dataset / "opinion_only"
     if not plain_dir.exists() or not opinion_dir.exists():
-        print(f"目录不存在: plain={plain_dir}, opinion={opinion_dir}")
+        print(f"directory missing: plain={plain_dir}, opinion={opinion_dir}")
         return None
 
     plain_map = _collect_seed_stem_map(plain_dir, args.data_seed)
     opinion_map = _collect_seed_stem_map(opinion_dir, args.data_seed)
     if not plain_map or not opinion_map:
-        print(f"未找到 seed={args.data_seed} 的 pkl：plain={len(plain_map)}, opinion={len(opinion_map)}")
+        print(f"no pkls for seed={args.data_seed}: plain={len(plain_map)}, opinion={len(opinion_map)}")
         return None
 
     if args.compare_mode == "by_method":
         bit = args.bit.strip().lower()
         if not bit:
-            print("by_method 模式下必须提供 --bit。")
+            print("--bit required in by_method mode.")
             return None
         if bit not in VALID_BITS:
-            print(f"--bit 目前建议使用 {VALID_BITS}，当前为: {bit}")
+            print(f"--bit should be one of {VALID_BITS}, got: {bit}")
             return None
         pairs, fp_pair = _collect_pairs_by_method(plain_map, opinion_map, args.model_id, bit, args.data_seed)
         sorted_keys = sorted(pairs.keys())
@@ -111,7 +111,7 @@ def collect_kl_divergence_across_methods_curves(
     else:
         method = args.method.strip().lower()
         if not method:
-            print("by_bit 模式下必须提供 --method。")
+            print("--method required in by_bit mode.")
             return None
         pairs, fp_pair = _collect_pairs_by_bit(plain_map, opinion_map, args.model_id, method, args.data_seed)
         sorted_keys = sorted(pairs.keys(), key=lambda x: (x not in VALID_BITS, x))
@@ -119,9 +119,9 @@ def collect_kl_divergence_across_methods_curves(
 
     if not pairs:
         if args.compare_mode == "by_method":
-            print(f"未找到匹配文件：model_id={args.model_id}, bit={bit}, seed={args.data_seed}")
+            print(f"no matching files: model_id={args.model_id}, bit={bit}, seed={args.data_seed}")
         else:
-            print(f"未找到匹配文件：model_id={args.model_id}, method={method}, seed={args.data_seed}")
+            print(f"no matching files: model_id={args.model_id}, method={method}, seed={args.data_seed}")
         return None
 
     curves = []
@@ -133,13 +133,13 @@ def collect_kl_divergence_across_methods_curves(
             continue
         layers, mean_kl = compute_kl_per_layer(df_plain, df_opinion, max_rows=args.max_rows)
         if not layers:
-            print(f"跳过 {key}: 无有效 layer_logits。")
+            print(f"skip {key}: no valid layer_logits.")
             continue
         curves.append((layers, mean_kl, key, CURVE_COLORS[i % len(CURVE_COLORS)]))
 
     if not args.no_full_precision:
         if fp_pair is None:
-            print("警告: 未找到 full precision 的 plain/opinion 成对文件，已跳过 FP 基线。")
+            print("warning: no full-precision plain/opinion pair; skipped FP baseline.")
         else:
             df_fp_plain = _safe_read_pickle(fp_pair[0])
             df_fp_opinion = _safe_read_pickle(fp_pair[1])
@@ -148,10 +148,10 @@ def collect_kl_divergence_across_methods_curves(
                 if layers_fp:
                     curves.append((layers_fp, mean_kl_fp, "full_precision", FP_COLOR))
                 else:
-                    print("警告: full precision 文件存在，但无可用 layer_logits，已跳过 FP 基线。")
+                    print("warning: full precision files exist but no usable layer_logits; skipped FP baseline.")
 
     if not curves:
-        print("没有可绘制曲线。")
+        print("no curves to plot.")
         return None
 
     out_plot = args.out_plot if args.out_plot else _default_out_plot(
@@ -161,7 +161,7 @@ def collect_kl_divergence_across_methods_curves(
 
 
 def build_kl_across_methods_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="比较 KL(Opinion || Plain)：同 bit 不同方法 / 同方法不同 bit")
+    parser = argparse.ArgumentParser(description="Compare KL(Opinion || Plain): same bit different methods / same method different bits")
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--model_id", type=str, required=True)
     parser.add_argument("--compare_mode", type=str, default="by_method", choices=["by_method", "by_bit"])

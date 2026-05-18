@@ -14,6 +14,6 @@ def ensure_project_syspath(*, origin_file: Path) -> Path:
                 sys.path.insert(0, s)
             return p
     raise RuntimeError(
-        "无法在父目录中找到项目根目录（需要同时包含 figure/ 与 evaluation/）。"
-        f"自 {start} 向上遍历失败。"
+        "Cannot find project root in parents (need both figure/ and evaluation/)."
+        f"walk upward from {start} failed."
     )

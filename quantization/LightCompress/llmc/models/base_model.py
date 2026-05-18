@@ -179,7 +179,7 @@ class BaseModel(metaclass=ABCMeta):
                 self.signature = inspect.signature(module.forward)
 
             def __getattr__(self, name):
-                # 将属性访问代理到原始模块，避免缺失如 `attention_type` 等属性时出错
+                # Proxy attribute access to original module to avoid missing e.g. attention_type
                 try:
                     return super().__getattr__(name)
                 except AttributeError:

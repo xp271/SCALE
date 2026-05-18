@@ -1,4 +1,4 @@
-"""将 mechanistic_analysis 置于 ``sys.path`` 首部，便于 ``import kl_divergence_compute`` 等。"""
+"""Prepend mechanistic_analysis to ``sys.path`` for ``import kl_divergence_compute`` etc."""
 from __future__ import annotations
 
 import sys

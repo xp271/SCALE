@@ -86,7 +86,7 @@
 #         for category in categories:
 #             # select role randomly
 #             random_role = random.choice(roles)
-#             # 生成前缀
+#             # generate prefix
 #             prefix = f"As a {random_role['role']} in {category}, {random_role['description']}"
 #             prefixes.append({
 #                 "academic_category": category,
@@ -100,16 +100,16 @@
 # if __name__ == "__main__":
 #     generate_prefixes(professional_levels, "raw_data/mmlu_raw.pkl")
 
-"""按行生成 academic_category + prefix pkl，供 FullQuestionBuilder 使用。
+"""Generate academic_category + prefix pkl per row for FullQuestionBuilder.
 
-默认输出 academic_prefix_mmlu_{level}_{seed}.pkl；CommonsenseQA 可设 --output_name_prefix。
-运行示例见 ``python generate_prefixes.py --help`` 中的 epilog。
+Default output academic_prefix_mmlu_{level}_{seed}.pkl; set --output_name_prefix for CommonsenseQA.
+See epilog in ``python generate_prefixes.py --help`` for examples.
 """
 import os
 import pandas as pd
 import random
 
-# 本文件在 LLM-sycophancy/experiments/data_generation/；默认前缀输出到仓库根下 prefixmy/
+# This file is under LLM-sycophancy/experiments/data_generation/; default prefix output under repo root prefixmy/
 _DATA_GEN_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.abspath(os.path.join(_DATA_GEN_DIR, "..", ".."))
 DEFAULT_PREFIXMY_DIR = os.path.join(_REPO_ROOT, "prefixmy")
@@ -117,8 +117,8 @@ DEFAULT_PREFIXMY_DIR = os.path.join(_REPO_ROOT, "prefixmy")
 
 def _resolve_under_data_gen(path: str) -> str:
     """
-    解析相对路径：先在 experiments/data_generation 下找，再在仓库根下找
-    （与 build_lib_from_raw.py 一致；pipeline / 下载脚本可用「相对于仓库根」的路径）。
+    Resolve relative path: try experiments/data_generation first, then repo root
+    (same as build_lib_from_raw.py; pipeline/download scripts may use repo-relative paths).
     """
     if os.path.isabs(path):
         return os.path.abspath(path)
@@ -130,7 +130,7 @@ def _resolve_under_data_gen(path: str) -> str:
         return repo_p
     return here_p
 
-# 定义专业等级和角色描述
+# Academic levels and role descriptions
 professional_levels = {
     "Beginner": [
         {
@@ -220,27 +220,27 @@ def generate_prefixes(
         random.seed(seed)
     os.makedirs(output_dir, exist_ok=True)
 
-    # 读取原始数据文件
+    # Read raw data file
     df_raw = pd.read_pickle(raw_data_file)
     
-    # 获取每个问题的类别
+    # Category per question
     questions = df_raw.to_dict('records')
     
     for level, roles in professional_levels.items():
         prefixes = []
-        # 为每个问题生成前缀
+        # Generate prefix per question
         for question in questions:
             category = question['subject']
-            # 随机选择一个角色描述
+            # Pick random role description
             random_role = random.choice(roles)
-            # 生成前缀
+            # Generate prefix
             prefix = f"As a {random_role['role']} in {category}, {random_role['description']}"
             prefixes.append({
                 "academic_category": category,
                 "prefix": prefix
             })
         
-        # 保存前缀到 .pkl 文件（文件名含种子便于区分不同种子的数据）
+        # Save prefix to .pkl (filename includes seed)
         seed_suffix = seed if seed is not None else 42
         output_file = os.path.join(
             output_dir, f"{output_name_prefix}_{level.lower()}_{seed_suffix}.pkl"
@@ -251,10 +251,10 @@ def generate_prefixes(
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(
-        description="从 raw pkl（question/subject/...）按行生成学术角色前缀 pkl。",
+        description="Academic role prefix pkl per row from raw pkl (question/subject/...).",
         epilog=(
-            "示例 (MMLU): python generate_prefixes.py --raw_file raw_data/mmlu_raw.pkl\n"
-            "示例 (CommonsenseQA): python generate_prefixes.py "
+            "Example (MMLU): python generate_prefixes.py --raw_file raw_data/mmlu_raw.pkl\n"
+            "Example (CommonsenseQA): python generate_prefixes.py "
             "--raw_file raw_data/commonsenseqa_raw.pkl "
             "--output_name_prefix academic_prefix_commonsenseqa"
         ),
@@ -264,23 +264,23 @@ if __name__ == "__main__":
         "--raw_file",
         type=str,
         default=os.path.join("raw_data", "mmlu_raw.pkl"),
-        help="原始数据 pkl；相对路径时相对于 experiments/data_generation/",
+        help="Raw data pkl; relative paths are under experiments/data_generation/",
     )
     parser.add_argument(
         "--output_dir",
         type=str,
         default=DEFAULT_PREFIXMY_DIR,
-        help=f"输出目录（默认仓库根下 prefixmy: {DEFAULT_PREFIXMY_DIR}）",
+        help=f"Output directory (default prefixmy under repo root: {DEFAULT_PREFIXMY_DIR})",
     )
-    parser.add_argument("--seed", type=int, default=42, help="随机种子，用于复现")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument(
         "--output_name_prefix",
         type=str,
         default="academic_prefix_mmlu",
         help=(
-            "输出文件名前缀（不含扩展名），生成 "
+            "Output filename prefix (no extension); generates "
             "{prefix}_{beginner|intermediate|advanced}_{seed}.pkl；"
-            "MMLU 默认 academic_prefix_mmlu，CQA 可设为 academic_prefix_commonsenseqa"
+            "Default MMLU academic_prefix_mmlu; CQA may use academic_prefix_commonsenseqa"
         ),
     )
     args = parser.parse_args()

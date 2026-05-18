@@ -166,16 +166,16 @@ class RandomPrune(TokenReductionModule):
 
             for b in range(batch_size):
                 for i in range(num_non_topk):
-                    topk_rel_idx = sim_max_index[b, i].item()  # 这是 topk 中的相对索引
-                    topk_abs_idx = top_attention_rank_index[topk_rel_idx]  # 得到绝对索引
+                    topk_rel_idx = sim_max_index[b, i].item()  # relative index within topk
+                    topk_abs_idx = top_attention_rank_index[topk_rel_idx]  # absolute index
                     non_topk_abs_idx = non_topk_indices[i]
 
-                    # 累加non-topk到topk token上（就地）
+                    # Accumulate non-topk into topk tokens (in-place)
                     hidden_states[b, topk_abs_idx, :] += hidden_states[b, non_topk_abs_idx, :]
-                    # 增加计数
+                    # increment count
                     topk_counter[b, topk_rel_idx] += 1
 
-            # 平均化所有topk token（包含自己和所有被合并的）
+            # average all topk tokens (self plus merged)
             for b in range(batch_size):
                 for i in range(num_topk):
                     topk_abs_idx = top_attention_rank_index[i]

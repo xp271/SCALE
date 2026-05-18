@@ -1,4 +1,4 @@
-"""手稿：authority 三档 chosen_wrong DS。``python -m figure.mechanistic.cli_ds_authority``"""
+"""Manuscript: authority three-level chosen_wrong DS. ``python -m figure.mechanistic.cli_ds_authority``"""
 from __future__ import annotations
 
 import sys

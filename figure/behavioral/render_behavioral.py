@@ -1,4 +1,4 @@
-"""Behavioral Fig1/Fig2 的 matplotlib 绑图。"""
+"""Matplotlib rendering for behavioral Fig1/Fig2."""
 from __future__ import annotations
 
 import os
@@ -120,7 +120,7 @@ def save_figure1(
     path1 = os.path.join(figure_dir, name1)
     fig1.savefig(path1, dpi=150)
     plt.close(fig1)
-    print(f"已保存: {path1}")
+    print(f"Saved: {path1}")
 
 
 def save_figure2(
@@ -160,4 +160,4 @@ def save_figure2(
     path2 = os.path.join(figure_dir, name2)
     fig2.savefig(path2, dpi=150)
     plt.close(fig2)
-    print(f"已保存: {path2}")
+    print(f"Saved: {path2}")

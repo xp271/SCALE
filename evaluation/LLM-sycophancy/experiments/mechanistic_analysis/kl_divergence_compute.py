@@ -1,8 +1,8 @@
 """
-纯计算：`plot_kl_divergence` 使用的每层 KL、pkl discovery、对齐与聚合（无 matplotlib）。
-绑图参见 ``figure/mechanistic/render_kl_divergence``。
+Compute-only: per-layer KL, pkl discovery, alignment, aggregation for `plot_kl_divergence` (no matplotlib).
+Plotting: ``figure/mechanistic/render_kl_divergence``.
 
-CLI 用法仍见 ``plot_kl_divergence.py``。
+CLI usage still in ``plot_kl_divergence.py``.
 """
 from __future__ import annotations
 
@@ -16,15 +16,15 @@ from mcq_option_utils import EPS_DEFAULT as EPS
 from mcq_option_utils import kl_divergence_probs as kl_divergence
 from mcq_option_utils import logits_to_probs
 
-# 可选：只画文件名含某关键词的模型；传空字符串表示不过滤
+# Optional: only models whose filename contains keyword; empty string = no filter
 DEFAULT_MODEL_KEY = "Llama"
 QUANT_METHODS = {"awq", "gptq", "hqq", "rtn"}
 
 
 def compute_kl_per_layer(df_plain, df_opinion, max_rows=None):
     """
-    按行对齐 plain 与 opinion，对每层计算平均 KL(opinion || plain)。
-    返回 (layers, mean_kl_per_layer)。
+    Align plain and opinion by row; mean KL(opinion || plain) per layer.
+    Returns (layers, mean_kl_per_layer).
     """
     if "layer_logits" not in df_plain.columns or "layer_logits" not in df_opinion.columns:
         return [], []
@@ -68,8 +68,8 @@ def compute_kl_per_layer(df_plain, df_opinion, max_rows=None):
 
 def compute_kl_to_full_precision_per_layer(df_quant, df_fp, max_rows=None):
     """
-    按行对齐量化模型与全精度模型，对每层计算平均 KL(quantized || full_precision)。
-    返回 (layers, mean_kl_per_layer)。
+    Align quantized and full-precision by row; mean KL(quantized || full_precision) per layer.
+    Returns (layers, mean_kl_per_layer).
     """
     if "layer_logits" not in df_quant.columns or "layer_logits" not in df_fp.columns:
         return [], []
@@ -112,14 +112,14 @@ def compute_kl_to_full_precision_per_layer(df_quant, df_fp, max_rows=None):
 
 
 def pkl_to_model_label(pkl_path):
-    """从 pkl 文件名推出显示名，如 Llama-3.2-1B_plain_all_xxx.pkl -> Llama 3.2 1B"""
+    """Display name from pkl filename, e.g. Llama-3.2-1B_plain_all_xxx.pkl -> Llama 3.2 1B"""
     name = Path(pkl_path).stem
-    # 先去掉中间的 _logit_ / _cot_ 等推理模式标记
+    # Strip mid-name _logit_ / _cot_ inference mode markers
     for mid in ["_logit_", "_cot_"]:
         if mid in name:
             name = name.split(mid)[0]
             break
-    # 再去掉末尾 _all_YYYYMMDD_HHMMSS 或 _last_...
+    # Strip trailing _all_YYYYMMDD_HHMMSS or _last_...
     for suffix in ["_all_", "_last_", "_odd_", "_even_"]:
         if suffix in name:
             name = name.split(suffix)[0]
@@ -130,7 +130,7 @@ def pkl_to_model_label(pkl_path):
 
 
 def _stem_to_model_key(p):
-    """从路径 stem 提取模型键（用于对齐 plain/opinion）。"""
+    """Model key from path stem (plain/opinion alignment)."""
     stem = Path(p).stem
     stem_lower = stem.lower()
     for sep in ["_plain_", "_plain-", "_opinion_only_", "_opinion_only-", "_opinion_"]:
@@ -146,9 +146,9 @@ def _stem_to_model_key(p):
 
 def find_plain_opinion_pairs(plain_paths, opinion_paths, model_key_filter=None):
     """
-    按“模型名”对齐 plain 与 opinion 的 pkl。
-    返回 [(plain_path, opinion_path, model_label), ...]。
-    model_key_filter: 若为非空字符串，只保留文件名中含该关键词的模型；None 或空串表示不过滤。
+    Align plain and opinion pkls by model name.
+    Returns [(plain_path, opinion_path, model_label), ...].
+    model_key_filter: if non-empty, keep models whose filename contains keyword; None or empty = no filter.
     """
     def is_model_match(p, key):
         return key and key.lower() in Path(p).name.lower()
@@ -178,11 +178,11 @@ def find_plain_opinion_pairs(plain_paths, opinion_paths, model_key_filter=None):
         pairs.append((plain_by_key[k], opinion_by_key[k], label))
 
     if not pairs:
-        print(f"[debug] plain 文件数: {len(plain_by_key)}, 键: {list(plain_by_key.keys())}")
-        print(f"[debug] opinion 文件数: {len(opinion_by_key)}, 键: {list(opinion_by_key.keys())}")
+        print(f"[debug] plain file count: {len(plain_by_key)}, keys: {list(plain_by_key.keys())}")
+        print(f"[debug] opinion file count: {len(opinion_by_key)}, keys: {list(opinion_by_key.keys())}")
         if plain_by_key and opinion_by_key and model_key_filter:
             common = set(plain_by_key) & set(opinion_by_key)
-            print(f"[debug] 共同键（未做模型过滤）: {common}")
+            print(f"[debug] common keys (no model filter): {common}")
 
     return pairs
 
@@ -197,14 +197,14 @@ def discover_quantized_fp_opinion_items(
     data_seeds=None,
 ):
     """
-    从 output_inference/{dataset}/opinion_only 自动发现
-    {model_id}_{method}_{bit}_logit_all_{seed}.pkl 与 full precision 参考。
-    传 method 时按 bit 分组；传 bit 时按 method 分组。
-    返回 (quant_items, fp_by_seed)，quant_items 中每个元素为 (first_path, label, triples)。
+    Auto-discover from output_inference/{dataset}/opinion_only
+    {model_id}_{method}_{bit}_logit_all_{seed}.pkl and full-precision reference.
+    With method, group by bit; with bit, group by method.
+    Returns (quant_items, fp_by_seed); each quant_items entry is (first_path, label, triples).
     """
     opinion_dir = Path(opinion_dir).resolve()
     if not opinion_dir.exists():
-        print(f"opinion_only 目录不存在: {opinion_dir}")
+        print(f"opinion_only directory does not exist: {opinion_dir}")
         return [], {}
 
     seed_filter = None
@@ -229,7 +229,7 @@ def discover_quantized_fp_opinion_items(
         quant_pattern = re.compile(rf"^{re.escape(model_id)}_(.+)_{re.escape(bit)}_logit_all_([0-9]+)$")
         grouping_mode = "by_method"
     else:
-        print("自动发现量化 KL 时必须提供 --method 或 --bit。")
+        print("auto-discovery for quant KL requires --method or --bit.")
         return [], {}
     fp_pattern = re.compile(rf"^{re.escape(model_id)}_full_precision_logit_all_([0-9]+)$")
 
@@ -271,9 +271,9 @@ def discover_quantized_fp_opinion_items(
         quant_items.append((triples[0][0], triples[0][1], triples))
 
     if not quant_items:
-        print(f"未找到量化 opinion_only pkl: dataset={dataset}, model_id={model_id}, method={method}, bit={bit}")
+        print(f"quantized opinion_only pkl not found: dataset={dataset}, model_id={model_id}, method={method}, bit={bit}")
     if not fp_by_seed:
-        print(f"未找到 full precision opinion_only pkl: dataset={dataset}, model_id={model_id}")
+        print(f"full precision opinion_only pkl not found: dataset={dataset}, model_id={model_id}")
     return quant_items, fp_by_seed
 
 
@@ -291,7 +291,7 @@ def collect_kl_divergence_curves(args: argparse.Namespace) -> tuple[list, str] |
     if kl_to_full_precision:
         if auto_discover_quant_fp:
             if args.method and args.bit:
-                print("自动发现模式下请只提供 --method 或 --bit 之一：--method 画不同 bit，--bit 画不同 method。")
+                print("in auto-discovery provide only --method or --bit: --method plots different bits, --bit plots different methods.")
                 return None
             opinion_dir = Path(args.output_inference_root).resolve() / args.dataset / "opinion_only"
             quant_items, fp_by_seed = discover_quantized_fp_opinion_items(
@@ -309,10 +309,10 @@ def collect_kl_divergence_curves(args: argparse.Namespace) -> tuple[list, str] |
                     return fp_by_seed[seed]
                 return None
 
-            print(f"目录: opinion={opinion_dir} ({len(list(opinion_dir.rglob('*.pkl'))) if opinion_dir.exists() else 0} 个 pkl)")
+            print(f"dirs: opinion={opinion_dir} ({len(list(opinion_dir.rglob('*.pkl'))) if opinion_dir.exists() else 0} pkls)")
         else:
             if not args.full_precision_opinion:
-                print("启用 --kl_to_full_precision 时必须提供 --full_precision_opinion，或改用 --dataset/--model_id/--method 自动发现。")
+                print("with --kl_to_full_precision provide --full_precision_opinion, or use --dataset/--model_id/--method auto-discovery.")
                 return None
 
             fp_opinion_base = Path(args.full_precision_opinion).resolve()
@@ -345,9 +345,9 @@ def collect_kl_divergence_curves(args: argparse.Namespace) -> tuple[list, str] |
             elif args.opinion_dir:
                 opinion_dir = Path(args.opinion_dir).resolve()
                 opinion_paths = [str(p) for p in opinion_dir.rglob("*.pkl")]
-                print(f"目录: opinion={opinion_dir} ({len(opinion_paths)} 个 pkl)")
+                print(f"dirs: opinion={opinion_dir} ({len(opinion_paths)} pkls)")
             else:
-                print("启用 --kl_to_full_precision 时请提供 --opinion 或 --opinion_dir，或改用 --dataset/--model_id/--method 自动发现。")
+                print("with --kl_to_full_precision provide --opinion or --opinion_dir, or use auto-discovery.")
                 return None
 
             if data_seeds is not None:
@@ -388,9 +388,9 @@ def collect_kl_divergence_curves(args: argparse.Namespace) -> tuple[list, str] |
             plain_paths = [str(p) for p in plain_dir.rglob("*.pkl")]
             opinion_paths = [str(p) for p in opinion_dir.rglob("*.pkl")]
             if data_seeds is not None:
-                # 多 seed：按 seed 过滤后找 pairs，再按 model 分组，每模型对多 seed 的 KL 取平均
+                # Multi-seed: filter by seed, find pairs, group by model, average KL across seeds per model
                 seed_suffixes = [f"_{s}" for s in data_seeds]
-                pairs_by_key = {}  # model_key -> [(plain_p, opinion_p), ...] 每个 seed 一对
+                pairs_by_key = {}  # model_key -> [(plain_p, opinion_p), ...] one pair per seed
                 for suffix in seed_suffixes:
                     p_sub = [p for p in plain_paths if Path(p).stem.endswith(suffix)]
                     o_sub = [p for p in opinion_paths if Path(p).stem.endswith(suffix)]
@@ -413,25 +413,25 @@ def collect_kl_divergence_curves(args: argparse.Namespace) -> tuple[list, str] |
             else:
                 pairs = find_plain_opinion_pairs(plain_paths, opinion_paths, model_key_filter=model_filter)
                 pairs = [(a, b, lbl) for a, b, lbl in pairs]
-            print(f"目录: plain={plain_dir} ({len(plain_paths)} 个 pkl), opinion={opinion_dir} ({len(opinion_paths)} 个 pkl)")
+            print(f"dirs: plain={plain_dir} ({len(plain_paths)} pkls), opinion={opinion_dir} ({len(opinion_paths)} pkls)")
         else:
-            print("请提供 --plain 与 --opinion，或 --plain_dir 与 --opinion_dir。")
+            print("provide --plain and --opinion, or --plain_dir and --opinion_dir.")
             return None
 
     if kl_to_full_precision:
         if not quant_items:
-            print("未找到可用的 quantized opinion_only pkl。请检查路径与文件名（及 --model_key）。")
+            print("no usable quantized opinion_only pkl. Check paths, filenames (and --model_key).")
             return None
     else:
         if not pairs:
-            print("未找到可匹配的 (plain, opinion) 对。请检查路径与文件名（及 --model_key）。")
+            print("no matching (plain, opinion) pairs. Check paths, filenames (and --model_key).")
             return None
 
     start_layer = args.start_layer
     end_layer = args.end_layer
 
     def filter_layer_range(layers, values):
-        """只保留 start_layer <= layer <= end_layer 的层。"""
+        """Keep only layers with start_layer <= layer <= end_layer."""
         if not layers:
             return [], []
         filtered_layers, filtered_values = [], []
@@ -454,7 +454,7 @@ def collect_kl_divergence_curves(args: argparse.Namespace) -> tuple[list, str] |
                 for opinion_p, _, seed in triples:
                     fp_opinion = full_precision_opinion_for_seed(seed)
                     if fp_opinion is None or not fp_opinion.exists():
-                        print(f"跳过 {label} seed={seed}: full precision opinion pkl 不存在: {fp_opinion}")
+                        print(f"skip {label} seed={seed}: full precision opinion pkl missing: {fp_opinion}")
                         continue
                     df_q = pd.read_pickle(opinion_p)
                     df_fp = pd.read_pickle(fp_opinion)
@@ -467,7 +467,7 @@ def collect_kl_divergence_curves(args: argparse.Namespace) -> tuple[list, str] |
                     layers_ref = layers
                     kl_per_seed.append(mean_kl)
                 if not kl_per_seed or layers_ref is None:
-                    print(f"跳过 {label}: 无有效 layer_logits。")
+                    print(f"skip {label}: no valid layer_logits.")
                     continue
                 avg_kl = np.nanmean(kl_per_seed, axis=0).tolist()
                 all_curves.append((layers_ref, avg_kl, label))
@@ -475,17 +475,17 @@ def collect_kl_divergence_curves(args: argparse.Namespace) -> tuple[list, str] |
                 opinion_p, label = item
                 fp_opinion = full_precision_opinion_for_seed(data_seed)
                 if fp_opinion is None or not fp_opinion.exists():
-                    print(f"跳过 {label}: full precision opinion pkl 不存在: {fp_opinion}")
+                    print(f"skip {label}: full precision opinion pkl missing: {fp_opinion}")
                     continue
                 df_q = pd.read_pickle(opinion_p)
                 df_fp = pd.read_pickle(fp_opinion)
                 layers, mean_kl = compute_kl_to_full_precision_per_layer(df_q, df_fp, max_rows=args.max_rows)
                 if not layers:
-                    print(f"跳过 {label}: 无有效 layer_logits。")
+                    print(f"skip {label}: no valid layer_logits.")
                     continue
                 layers, mean_kl = filter_layer_range(layers, mean_kl)
                 if not layers:
-                    print(f"跳过 {label}: 在 start_layer={start_layer}, end_layer={end_layer} 范围内无层。")
+                    print(f"skip {label}: no layers in range start_layer={start_layer}, end_layer={end_layer}.")
                     continue
                 all_curves.append((layers, mean_kl, label))
     else:
@@ -501,7 +501,7 @@ def collect_kl_divergence_curves(args: argparse.Namespace) -> tuple[list, str] |
                     if layers_fp:
                         all_curves.append((layers_fp, mean_kl_fp, "Full precision"))
             else:
-                print(f"警告: 全精度 pkl 不存在，跳过。plain={fp_plain}, opinion={fp_opinion}")
+                print(f"warning: full-precision pkl missing, skipping. plain={fp_plain}, opinion={fp_opinion}")
 
         for item in pairs:
             if data_seeds is not None and len(item) == 4:
@@ -520,7 +520,7 @@ def collect_kl_divergence_curves(args: argparse.Namespace) -> tuple[list, str] |
                     layers_ref = layers
                     kl_per_seed.append(mean_kl)
                 if not kl_per_seed or layers_ref is None:
-                    print(f"跳过 {label}: 无有效 layer_logits。")
+                    print(f"skip {label}: no valid layer_logits.")
                     continue
                 avg_kl = np.nanmean(kl_per_seed, axis=0).tolist()
                 all_curves.append((layers_ref, avg_kl, label))
@@ -530,11 +530,11 @@ def collect_kl_divergence_curves(args: argparse.Namespace) -> tuple[list, str] |
                 df_o = pd.read_pickle(opinion_p)
                 layers, mean_kl = compute_kl_per_layer(df_p, df_o, max_rows=args.max_rows)
                 if not layers:
-                    print(f"跳过 {label}: 无有效 layer_logits。")
+                    print(f"skip {label}: no valid layer_logits.")
                     continue
                 layers, mean_kl = filter_layer_range(layers, mean_kl)
                 if not layers:
-                    print(f"跳过 {label}: 在 start_layer={start_layer}, end_layer={end_layer} 范围内无层。")
+                    print(f"skip {label}: no layers in range start_layer={start_layer}, end_layer={end_layer}.")
                     continue
                 all_curves.append((layers, mean_kl, label))
     if not all_curves:

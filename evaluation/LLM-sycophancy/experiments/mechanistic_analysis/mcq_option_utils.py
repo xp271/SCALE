@@ -1,5 +1,5 @@
 """
-MCQ 选项字母解析与 layer_logits 上的 softmax / KL（支持 MMLU 四选项与 CommonsenseQA 五选项等）。
+MCQ option-letter parsing and softmax / KL on layer_logits (MMLU 4-option, CommonsenseQA 5-option, etc.).
 """
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import numpy as np
 
 EPS_DEFAULT = 1e-10
 
-# 解析失败时与历史行为一致：按四选项算 logit
+# On parse failure, match legacy behavior: four-option logits
 FALLBACK_LETTERS = ["A", "B", "C", "D"]
 
 

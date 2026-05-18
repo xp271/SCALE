@@ -14,7 +14,7 @@ MECH_SUBDIR = "experiments/mechanistic_analysis"
 
 
 def _resolve_behavioral_output_base(syco_repo: Path, behavioral_output_base: str) -> str:
-    """``output`` 等相对路径与旧版 cwd=behavioral_analysis 行为一致。"""
+    """Relative paths like ``output`` match legacy cwd=behavioral_analysis behavior."""
     p = Path(behavioral_output_base)
     if p.is_absolute():
         return str(p.resolve())
@@ -56,7 +56,7 @@ def plot_combo(
         baseline_model_type=f"{plot_model_id}_full_precision",
     )
 
-    # 1.1) fig2: First-pov Academic（仅 eval_authority_advanced）
+    # 1.1) fig2: First-pov Academic (eval_authority_advanced only)
     if eval_authority_advanced:
         run_fig2_authority(
             dataset=dataset,
@@ -67,7 +67,7 @@ def plot_combo(
             output_base=behavioral_resolved,
         )
 
-    # 2) compute_decision_score: 仅在机理分支
+    # 2) compute_decision_score: mechanistic branch only
     logit_plain_job = next((j for j in eval_jobs if j.get("tag") == "logit_cot_plain"), None)
     logit_opinion_job = next((j for j in eval_jobs if j.get("tag") == "logit_cot_opinion"), None)
     if eval_mechanistic and logit_plain_job and logit_opinion_job:
@@ -107,7 +107,7 @@ def plot_combo(
     else:
         print("[Plot] Skip compute_decision_score: logit_cot jobs not found", file=sys.stderr)
 
-    # 3) plot_kl_divergence: 多 seed 取平均（机理分支）
+    # 3) plot_kl_divergence: average over seeds (mechanistic)
     if eval_mechanistic:
         kl_out = str(Path(figure_dir) / f"kl_divergence_{plot_name_with_dataset}.png")
         run_kl_divergence(

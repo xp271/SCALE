@@ -154,7 +154,7 @@ def eval_model_against_jobs(
     syco_device: str,
     dataset: str,
     model_output_name: str,
-    log_tag: str,                       # 例如 "Syco FP" / "Syco" / "Syco QAT"
+    log_tag: str,                       # e.g. "Syco FP" / "Syco" / "Syco QAT"
     cuda_visible_devices: str | None,
     base_model_name: str | None,
     model_id: str,

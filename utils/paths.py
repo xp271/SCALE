@@ -21,7 +21,7 @@ def resolve_path(value: str | None, config_dir: Path) -> Path | None:
 
 
 def fs_safe_label(s: str) -> str:
-    """HF 的 org/model 等形式含 '/'，不能直接用作单层目录名或文件名片段。"""
+    """HF org/model paths contain '/'; not valid as a single dir or filename segment."""
     return s.replace("\\", "_").replace("/", "_")
 
 

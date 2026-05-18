@@ -170,17 +170,17 @@ class GPTQ(BaseBlockwiseQuantization):
         diag = torch.arange(self.columns, device=self.dev)
         H[diag, diag] += damp
 
-        # 对 Qwen 系列模型额外增强数值正定性
-        # Qwen2 / Qwen2.5 等在实际 Hessian 估计中更容易出现近似非正定
+        # Extra numerical positive-definiteness for Qwen models
+        # Qwen2 / Qwen2.5 etc. Hessian estimates are more often near-indefinite
         model_class_name = self.model.__class__.__name__
         if 'Qwen2' in model_class_name:
             try:
-                # 先尝试：加强对角线正则 + Cholesky
+                # First try: stronger diagonal regularization + Cholesky
                 eps = 1e-4 * torch.mean(torch.diag(H).abs())
                 H[diag, diag] += eps
                 L = torch.linalg.cholesky(H)
             except torch._C._LinAlgError:
-                # 如果仍然失败，则退化为对角 Hessian：只保留对角元素并裁剪到正数
+                # On failure, fall back to diagonal Hessian: keep diagonal only, clip positive
                 diag_vals = torch.diag(H).clone()
                 mean_abs = float(diag_vals.abs().mean())
                 min_pos = 1e-6 * mean_abs if mean_abs > 0 else 1e-6

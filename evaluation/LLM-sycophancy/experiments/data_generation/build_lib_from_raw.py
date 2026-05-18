@@ -1,17 +1,17 @@
 """
-从 raw pkl（MMLU / CommonsenseQA 等同 schema）生成 lib/ 目录下运行实验所需的 pkl 文件：
+From raw pkl (MMLU / CommonsenseQA etc.) build experiment pkls under lib/:
 - lib/plain/{data_slug}_plain_{seed}.pkl
 - lib/opinion_only/prefix/{data_slug}_opinion_only_{seed}.pkl
 - lib/pov/prefix/first_pov/{data_slug}_academic_opinion_{beginner,intermediate,advanced}_{seed}.pkl
 
-依赖：
-- raw pkl：download_mmlu.py / download_commonsenseqa.py 等生成（列 question, subject, choices, answer）
-- 前缀 pkl：generate_prefixes.py，文件名须与 --output_name_prefix 一致：
+Dependencies:
+- raw pkl: from download_mmlu.py / download_commonsenseqa.py (columns question, subject, choices, answer)
+- prefix pkl: generate_prefixes.py; filenames must match --output_name_prefix:
   {prefix_dir}/{output_name_prefix}_{level}_{seed}.pkl
 
-建议在 LLM-sycophancy 仓库根目录执行本脚本，使 lib/ 落在仓库根下。
+Run from LLM-sycophancy repo root so lib/ lands under repo root.
 
-CQA 示例：
+CQA example:
   python experiments/data_generation/build_lib_from_raw.py \\
     --raw_file experiments/data_generation/raw_data/commonsenseqa_raw.pkl \\
     --output_name_prefix academic_prefix_commonsenseqa \\
@@ -24,7 +24,7 @@ import argparse
 import random
 import pandas as pd
 
-# 确保可以找到同目录下的 full_question_builder.py
+# Ensure full_question_builder.py in same dir is importable
 HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.append(HERE)
@@ -35,9 +35,9 @@ DEFAULT_PREFIXMY_DIR = os.path.join(_REPO_ROOT, "prefixmy")
 
 def _resolve_under_data_gen(path: str) -> str:
     """
-    解析相对路径：先在 experiments/data_generation 下找，再在仓库根下找。
-    这样既可写 raw_data/foo.pkl（相对 data_generation），也可写
-    experiments/data_generation/raw_data/foo.pkl（相对仓库根，在仓库根执行时常见）。
+    Resolve relative path: try experiments/data_generation first, then repo root.
+    Supports raw_data/foo.pkl (relative to data_generation) or
+    experiments/data_generation/raw_data/foo.pkl (repo-relative when run from root).
     """
     if os.path.isabs(path):
         return os.path.abspath(path)
@@ -51,7 +51,7 @@ def _resolve_under_data_gen(path: str) -> str:
 
 
 def infer_data_slug(raw_path: str) -> str:
-    """与 full_question_builder 中 base_name 规则一致：basename 去扩展名并去掉 _raw 后缀。"""
+    """Same base_name rule as full_question_builder: basename without extension and _raw suffix."""
     stem = os.path.splitext(os.path.basename(raw_path))[0]
     if stem.endswith("_raw"):
         stem = stem[: -len("_raw")]
@@ -63,37 +63,37 @@ from full_question_builder import FullQuestionBuilder, match_category_prefix
 
 def main():
     parser = argparse.ArgumentParser(
-        description="从 raw pkl 生成 lib/ 下的 plain、opinion_only、prefix+opinion（三档）pkl"
+        description="Build plain, opinion_only, prefix+opinion (three levels) pkls under lib/ from raw pkl"
     )
     parser.add_argument(
         "--raw_file",
         type=str,
         default="raw_data/mmlu_raw.pkl",
-        help="原始 pkl；相对路径时先在 experiments/data_generation 下解析，不存在则在仓库根下解析",
+        help="Raw pkl; resolve under experiments/data_generation first, else repo root",
     )
     parser.add_argument(
         "--prefix_dir",
         type=str,
         default=DEFAULT_PREFIXMY_DIR,
-        help=f"前缀 pkl 所在目录（默认仓库根下 prefixmy: {DEFAULT_PREFIXMY_DIR}）",
+        help=f"Prefix pkl directory (default prefixmy under repo root: {DEFAULT_PREFIXMY_DIR})",
     )
     parser.add_argument(
         "--output_name_prefix",
         type=str,
         default="academic_prefix_mmlu",
-        help="与 generate_prefixes.py --output_name_prefix 一致，例如 CQA 用 academic_prefix_commonsenseqa",
+        help="Must match generate_prefixes.py --output_name_prefix, e.g. academic_prefix_commonsenseqa for CQA",
     )
     parser.add_argument(
         "--data_slug",
         type=str,
         default=None,
-        help="写入 lib/ 的文件名前缀；默认从 --raw_file 推断（basename 去掉 _raw 与扩展名）",
+        help="Filename prefix under lib/; default inferred from --raw_file (strip _raw and extension)",
     )
     parser.add_argument(
         "--seed",
         type=int,
         default=42,
-        help="随机种子；须与生成前缀时 generate_prefixes.py 的 --seed 一致",
+        help="Random seed; must match generate_prefixes.py --seed when prefixes were built",
     )
     args = parser.parse_args()
 
@@ -106,15 +106,15 @@ def main():
 
     if not os.path.exists(raw_file):
         raise FileNotFoundError(
-            f"找不到原始数据文件 {raw_file}。"
-            f"请先运行 download_mmlu.py 或 download_commonsenseqa.py（或检查 --raw_file 路径）。"
+            f"raw data file not found: {raw_file}."
+            f"Run download_mmlu.py or download_commonsenseqa.py first (or check --raw_file path)."
         )
 
-    print(f"读取原始数据：{raw_file}")
+    print(f"Reading raw data: {raw_file}")
     print(f"data_slug={data_slug}, output_name_prefix={output_name_prefix}, seed={seed}")
     df_raw = pd.read_pickle(raw_file)
 
-    # 与 data_generation 代码保持一致的列映射
+    # Column mapping consistent with data_generation code
     column_mapping = {
         "question": "question",
         "subject": "category",
@@ -124,11 +124,11 @@ def main():
 
     builder = FullQuestionBuilder(
         df_raw,
-        base_output_dir=".",  # 输出目录对我们没影响，只用它的 build_augmented
+        base_output_dir=".",  # output dir unused; only build_augmented is used
         column_mapping=column_mapping,
     )
 
-    # 确保 lib 目录结构存在
+    # Ensure lib directory layout exists
     paths_to_create = [
         "lib/plain",
         "lib/opinion_only/prefix",
@@ -138,18 +138,18 @@ def main():
         os.makedirs(p, exist_ok=True)
 
     # 1. Plain baseline
-    print("生成 plain 基线数据 ...")
+    print("Building plain baseline data ...")
     df_plain = builder.build_augmented(prefix_type="", question_style="plain")
     plain_path = f"lib/plain/{data_slug}_plain_{seed}.pkl"
     df_plain.to_pickle(plain_path)
-    print(f"已写入 {plain_path}，样本数：{len(df_plain)}")
+    print(f"Wrote {plain_path}, samples: {len(df_plain)}")
 
     # 2. Opinion-only
-    print("生成 opinion-only 数据 ...")
+    print("Building opinion-only data ...")
     df_opinion = builder.build_augmented(prefix_type="", question_style="opinion_only")
     opinion_path = f"lib/opinion_only/prefix/{data_slug}_opinion_only_{seed}.pkl"
     df_opinion.to_pickle(opinion_path)
-    print(f"已写入 {opinion_path}，样本数：{len(df_opinion)}")
+    print(f"Wrote {opinion_path}, samples: {len(df_opinion)}")
 
     # 3. POV + expertise (first-person)
     levels = ["beginner", "intermediate", "advanced"]
@@ -159,13 +159,13 @@ def main():
         )
         if not os.path.exists(prefix_file):
             raise FileNotFoundError(
-                f"找不到前缀文件 {prefix_file}。"
-                f"请先运行：python generate_prefixes.py --raw_file <与当前相同的 raw> "
+                f"prefix file not found: {prefix_file}."
+                f"Run first: python generate_prefixes.py --raw_file <same raw as here> "
                 f"--output_name_prefix {output_name_prefix} --seed {seed} "
-                f"(且 --prefix_dir 指向同一目录，默认即仓库根下 prefixmy)。"
+                f"(and --prefix_dir points to the same dir, default prefixmy under repo root)."
             )
 
-        print(f"生成 POV + expertise ({level}) 数据 ...")
+        print(f"Building POV + expertise ({level}) data ...")
         prefix_df = pd.read_pickle(prefix_file)
         df_pov = builder.build_augmented(
             prefix_df=prefix_df,
@@ -178,9 +178,9 @@ def main():
         out_path = f"lib/pov/prefix/first_pov/{data_slug}_academic_opinion_{level}_{seed}.pkl"
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         df_pov.to_pickle(out_path)
-        print(f"已写入 {out_path}，样本数：{len(df_pov)}")
+        print(f"Wrote {out_path}, samples: {len(df_pov)}")
 
-    print("全部 lib/* pkl 生成完毕。")
+    print("All lib/* pkls generated.")
 
 
 if __name__ == "__main__":

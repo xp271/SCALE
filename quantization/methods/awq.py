@@ -1,8 +1,4 @@
 """AWQ method builder.
-
-AWQ 硬编码：忽略前 N 个 block（idx 0..N-1）内所有线性层，保留原精度。
-走 LightCompress 顶层 ignored_layers 接口（base_blockwise_quantization.set_no_quant_layer）。
-``layer_names`` 必须是相对 block 的子模块短名（Llama/Qwen/Mistral/Gemma 系命名一致）。
 """
 from __future__ import annotations
 

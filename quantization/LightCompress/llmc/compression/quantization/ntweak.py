@@ -123,9 +123,9 @@ class NormTweaking(BaseBlockwiseQuantization):
 
             for i in range(len(self.input['data'])):
                 with self.traincast():
-                    # 复用最初前向时记录下来的 kwargs（其中可能包含 position_embeddings / position_ids 等）
+                    # Reuse kwargs from first forward (may include position_embeddings / position_ids)
                     block_kwargs = dict(self.input['kwargs'][i])
-                    # 覆盖 attention_mask 为当前 batch_mask，但保留其它关键信息（如 position_embeddings）
+                    # Override attention_mask with current batch_mask; keep other keys e.g. position_embeddings
                     block_kwargs['attention_mask'] = self.batch_mask
                     quant_out = block(self.input['data'][i], **block_kwargs)[0]
 

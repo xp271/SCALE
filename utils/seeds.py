@@ -5,12 +5,12 @@ import random
 
 
 def generate_eval_data_seeds(master_seed: int, n: int) -> list[int]:
-    """用固定 ``master_seed`` 的 PRNG 生成 ``n`` 个互不相同的数据集随机种子（用于 build_lib / 评估 / 绘图平均）。
+    """Generate ``n`` distinct dataset random seeds with PRNG ``master_seed`` (build_lib / eval / plot avg).
 
-    取值范围为 ``[0, 2**31)``，生成顺序稳定可复现。
+    Values in ``[0, 2**31)``; order is stable and reproducible.
     """
     if n < 1:
-        raise ValueError("n 必须 >= 1")
+        raise ValueError("n must be >= 1")
     rng = random.Random(master_seed)
     out: list[int] = []
     seen: set[int] = set()

@@ -1,4 +1,4 @@
-"""手稿：chosen_wrong DS（同 bit / 不同方法 或 反之）。``python -m figure.mechanistic.cli_ds_across_methods``"""
+"""Manuscript: chosen_wrong DS (same bit / different methods or vice versa). ``python -m figure.mechanistic.cli_ds_across_methods``"""
 from __future__ import annotations
 
 import sys

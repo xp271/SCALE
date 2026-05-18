@@ -1,4 +1,4 @@
-"""手稿：KL(Opinion||Plain) across methods/bit。``python -m figure.mechanistic.cli_kl_across_methods``"""
+"""Manuscript: KL(Opinion||Plain) across methods/bit. ``python -m figure.mechanistic.cli_kl_across_methods``"""
 from __future__ import annotations
 
 import sys

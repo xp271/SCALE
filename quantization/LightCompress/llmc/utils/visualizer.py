@@ -253,7 +253,7 @@ def visualize_attention_v2(attention, grid_size=24, save_path=None):
     if hasattr(attention, 'detach'):
         attention = attention.detach().cpu().numpy()
 
-    # 分区
+    # Partition
     block_ranges = []
 
     # SYS: 2 blocks
@@ -273,7 +273,7 @@ def visualize_attention_v2(attention, grid_size=24, save_path=None):
     for i in range(len(ins_splits) - 1):
         block_ranges.append((ins_splits[i], ins_splits[i + 1]))
 
-    # 对每个 block pair 求平均
+    # Average over each block pair
     num_blocks = len(block_ranges)
     block_attention = np.zeros((num_blocks, num_blocks))
     for i in range(num_blocks):
@@ -290,7 +290,7 @@ def visualize_attention_v2(attention, grid_size=24, save_path=None):
     # sns.heatmap(block_attention, cmap='viridis', square=True, cbar=True)
 
     section_labels = ['SYS', 'IMG', 'INS']
-    section_boundaries = [2, 26, 32]  # block_ranges 分别为2个SYS，24个IMG，6个INS
+    section_boundaries = [2, 26, 32]  # block_ranges: 2 SYS, 24 IMG, 6 INS
     ticks = np.arange(0, num_blocks)
     plt.xticks(ticks=ticks, labels=[''] * num_blocks)
     plt.yticks(ticks=ticks, labels=[''] * num_blocks)
@@ -350,7 +350,7 @@ def visualize_cosin_token_32p(token_embedding, save_path=None):
     tokens_per_group = 196 * group_size
     step = 196
 
-    fig, axs = plt.subplots(2, 4, figsize=(22, 10))  # 2x4排布
+    fig, axs = plt.subplots(2, 4, figsize=(22, 10))  # 2x4 layout
     axs = axs.flatten()
 
     for i in range(num_groups):

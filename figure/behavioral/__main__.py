@@ -1,4 +1,4 @@
-"""CLI: ``python -m figure.behavioral``（在项目根且 PYTHONPATH 含项目根时）。"""
+"""CLI: ``python -m figure.behavioral`` (from repo root with project root on PYTHONPATH)."""
 from figure.behavioral.figures import main_cli
 
 if __name__ == "__main__":
