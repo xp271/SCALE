@@ -499,7 +499,7 @@ SCALE does not redistribute any third-party models or datasets. It only provides
 ### Models
 
 - **LLaMA 3.1 8B-Instruct** — subject to the Meta Llama 3.1 Community License.
-- **Qwen3 8B** — subject to its respective license (please refer to the official release).
+- **Qwen3 8B** — subject to the Apache 2.0 License.
 - **Mistral 7B** — subject to the Apache 2.0 License.
 
 ### Datasets
@@ -507,11 +507,5 @@ SCALE does not redistribute any third-party models or datasets. It only provides
 - **MMLU (Massive Multitask Language Understanding)** — subject to its original license and terms of use.
 - **CommonsenseQA** — subject to its original license and terms of use.
 
-### Quantization Implementations
-
-- **GPTQ** — https://github.com/IST-DASLab/gptq
-- **AWQ** — https://github.com/mit-han-lab/llm-awq
-- **HQQ** — https://github.com/dropbox/hqq
-- **RTN** (via DeepSpeed) — https://github.com/deepspeedai/DeepSpeed
 
 Each of the above is distributed under its own license. Please consult the corresponding repositories and model/dataset cards for the exact terms. This research use is consistent with, and intended to remain compatible with, the original access conditions of all models and datasets used in the evaluation.
