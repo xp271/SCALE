@@ -504,8 +504,8 @@ SCALE does not redistribute any third-party models or datasets. It only provides
 
 ### Datasets
 
-- **MMLU (Massive Multitask Language Understanding)** — subject to its original license and terms of use.
-- **CommonsenseQA** — subject to its original license and terms of use.
+- **MMLU (Massive Multitask Language Understanding)** — subject to the MIT License.
+- **CommonsenseQA** — subject to the MIT License.
 
 
 Each of the above is distributed under its own license. Please consult the corresponding repositories and model/dataset cards for the exact terms. This research use is consistent with, and intended to remain compatible with, the original access conditions of all models and datasets used in the evaluation.
