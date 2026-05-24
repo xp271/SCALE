@@ -485,3 +485,33 @@ python -m figure.mechanistic.cli_ds_authority \
 
 - `--eval` implementation details: [config/parser.py](config/parser.py)
 - Job definitions: [evaluation/job_builder.py](evaluation/job_builder.py)
+
+---
+
+## License and Intended Use
+
+The original code in this repository (the **SCALE** evaluation framework) is released under the [MIT License](LICENSE) (see the `LICENSE` file).
+
+**This system is intended for scientific research purposes only. It must not be used for any commercial purpose.**
+
+SCALE does not redistribute any third-party models or datasets. It only provides evaluation code that operates on models and datasets obtained independently by the user from their official sources. All models, datasets, and quantization implementations used in this work are governed by their own respective licenses and access conditions. Use of this system must comply with the original access conditions of all such resources. Users are solely responsible for reviewing and adhering to those licenses, and nothing in this repository grants any rights beyond those permitted by the original licenses of the incorporated resources.
+
+### Models
+
+- **LLaMA 3.1 8B-Instruct** — subject to the Meta Llama 3.1 Community License.
+- **Qwen3 8B** — subject to its respective license (please refer to the official release).
+- **Mistral 7B** — subject to the Apache 2.0 License.
+
+### Datasets
+
+- **MMLU (Massive Multitask Language Understanding)** — subject to its original license and terms of use.
+- **CommonsenseQA** — subject to its original license and terms of use.
+
+### Quantization Implementations
+
+- **GPTQ** — https://github.com/IST-DASLab/gptq
+- **AWQ** — https://github.com/mit-han-lab/llm-awq
+- **HQQ** — https://github.com/dropbox/hqq
+- **RTN** (via DeepSpeed) — https://github.com/deepspeedai/DeepSpeed
+
+Each of the above is distributed under its own license. Please consult the corresponding repositories and model/dataset cards for the exact terms. This research use is consistent with, and intended to remain compatible with, the original access conditions of all models and datasets used in the evaluation.
