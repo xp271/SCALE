@@ -1,4 +1,4 @@
-"""Main KL CLI (plain vs opinion / dir mode / quant vs FP). Run: ``python -m figure.mechanistic.kl_plot``.""
+"""Main KL CLI (plain vs opinion / dir mode / quant vs FP). Run: ``python -m figure.mechanistic.kl_plot``."""
 from __future__ import annotations
 
 import argparse

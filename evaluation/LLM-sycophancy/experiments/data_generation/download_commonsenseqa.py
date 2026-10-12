@@ -79,8 +79,8 @@ def main():
         description="Download CommonsenseQA (tau/commonsense_qa) and save as raw pkl.",
         epilog=(
             "Recommended split: validation or train (has answerKey). test often has no labels; script drops unlabeled rows.\n"
-            "Generate prefixes: python generate_prefixes.py --raw_file raw_data/commonsenseqa_raw.pkl "
-            "--output_name_prefix academic_prefix_commonsenseqa\n"
+            "Build lib pkls: python experiments/data_generation/build_lib_from_raw.py "
+            "--raw_file experiments/data_generation/raw_data/commonsenseqa_raw.pkl --seed 42\n"
             "MMLU download: python download_mmlu.py --output raw_data/mmlu_raw.pkl"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,

@@ -437,11 +437,15 @@ def filter_eval_jobs_by_tags(eval_jobs: list[dict], tags: set[str]) -> list[dict
 
     ``authority`` is special: it represents the three ``authority_*`` jobs in
     job_builder (beginner / intermediate / advanced). When present in CLI tags,
-    we let any ``authority_*`` tag through.
+    we let any ``authority_*`` tag through; together with a mechanistic tag it
+    also keeps the ``logit_cot_authority_*`` jobs (authority DS + PCA).
     """
     authority_on = _AUTHORITY_TAG in tags
+    mechanistic_on = bool(tags & _MECHANISTIC_TAGS)
     return [
         j
         for j in eval_jobs
-        if j["tag"] in tags or (authority_on and str(j["tag"]).startswith("authority_"))
+        if j["tag"] in tags
+        or (authority_on and str(j["tag"]).startswith("authority_"))
+        or (authority_on and mechanistic_on and str(j["tag"]).startswith("logit_cot_authority_"))
     ]

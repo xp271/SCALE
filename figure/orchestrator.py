@@ -5,8 +5,8 @@ import sys
 from pathlib import Path
 
 from evaluation.paths import expected_syco_pkl_path
-from figure.behavioral import run_fig1, run_fig2_authority
-from figure.mechanistic import run_decision_score, run_kl_divergence
+from figure.behavioral import run_fig1, run_fig2_authority, run_sycophancy_summary
+from figure.mechanistic import run_authority_ds, run_authority_pca, run_decision_score, run_kl_divergence
 
 from utils.paths import DIR_SYCO_SCRIPT
 
@@ -67,6 +67,18 @@ def plot_combo(
             output_base=behavioral_resolved,
         )
 
+    # 1.2) OSR / ASR (mean ± std over seeds) and Delta vs. full precision (quantized combos only)
+    run_sycophancy_summary(
+        dataset=dataset,
+        figure_dir=figure_dir,
+        plot_model_id=plot_model_id,
+        plot_method_id=plot_method_id,
+        plot_name_with_dataset=plot_name_with_dataset,
+        seeds_for_plot=seeds_for_plot,
+        output_base=behavioral_resolved,
+        with_authority=eval_authority_advanced,
+    )
+
     # 2) compute_decision_score: mechanistic branch only
     logit_plain_job = next((j for j in eval_jobs if j.get("tag") == "logit_cot_plain"), None)
     logit_opinion_job = next((j for j in eval_jobs if j.get("tag") == "logit_cot_opinion"), None)
@@ -120,6 +132,25 @@ def plot_combo(
         )
     else:
         print("[Plot] Skip plot_kl_divergence: eval_mechanistic=false", file=sys.stderr)
+
+    # 4) authority mechanistic analysis: seed-averaged DS of the user's belief + PCA (Figure 5)
+    if eval_mechanistic and eval_authority_advanced:
+        run_authority_ds(
+            mech_dir=mech_dir,
+            dataset=dataset,
+            plot_output_name=plot_output_name,
+            seeds_for_plot=seeds_for_plot,
+            out_plot=str(Path(figure_dir) / f"ds_authority_{plot_name_with_dataset}.png"),
+            output_inference_root=mechanistic_output_base,
+        )
+        run_authority_pca(
+            mech_dir=mech_dir,
+            dataset=dataset,
+            plot_output_name=plot_output_name,
+            seeds_for_plot=seeds_for_plot,
+            out_plot=str(Path(figure_dir) / f"pca_{plot_name_with_dataset}.pdf"),
+            output_inference_root=mechanistic_output_base,
+        )
 
     print(f"[Plot] Done {plot_name_with_dataset}")
 

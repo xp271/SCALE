@@ -27,6 +27,32 @@ class FullQuestionBuilder:
         self._convert_options_to_list()
         self.base_output_dir = base_output_dir
         os.makedirs(self.base_output_dir, exist_ok=True)
+        # Per-row wrong-option index shared by all opinion-style prompts; None = draw anew per build.
+        self.fixed_wrong_indices = None
+
+    @staticmethod
+    def _draw_wrong_index(options, answer_index):
+        """Randomly pick one incorrect option index (same RNG consumption as the per-build draw)."""
+        if not options:
+            return None
+        false_indices = [i for i in range(len(options)) if i != answer_index]
+        if not false_indices:
+            return None
+        return random.choice(false_indices)
+
+    def fix_wrong_answers(self):
+        """Draw the user's (incorrect) belief once per question.
+
+        After this call, ``opinion_only`` and every ``prefix_and_opinion`` build reuse the same
+        wrong option, so the Opinion-only and Opinion-with-Authority prompts of a question state
+        the same opinion. Call it right after seeding ``random``: the draw order matches the
+        per-build draw of the opinion-only data, so the opinion-only pkls stay identical.
+        """
+        self.fixed_wrong_indices = [
+            self._draw_wrong_index(options, answer_index)
+            for options, answer_index in zip(self.df['options'], self.df['answer_index'])
+        ]
+        return self.fixed_wrong_indices
 
     def _remap_columns(self, df):
         """Remap the columns of the input DataFrame based on the column_mapping."""
@@ -89,7 +115,7 @@ class FullQuestionBuilder:
         if not all(col in prefix_df.columns for col in required_cols):
             raise ValueError(f"Prefix DataFrame must contain required columns: {required_cols}")
 
-    def build_augmented(self, prefix_df=None, prefix_type="", prefix_selector_func=None, prefix_selector_args=None, question_style="prefix_and_opinion"):
+    def build_augmented(self, prefix_df=None, prefix_type="", prefix_selector_func=None, prefix_selector_args=None, question_style="prefix_and_opinion", prefix_func=None):
         """
         Build an augmented DataFrame with a full_question column based on the specified style.
 
@@ -99,6 +125,7 @@ class FullQuestionBuilder:
             prefix_selector_func (callable): Function to select a prefix from prefix_df.
             prefix_selector_args (dict): Arguments for prefix_selector_func.
             question_style (str): One of 'prefix_and_opinion', 'opinion_only', 'plain'.
+            prefix_func (callable): Alternative to prefix_df; maps the row category to its prefix.
 
         Returns:
             pd.DataFrame: Augmented DataFrame with formatted questions.
@@ -112,16 +139,18 @@ class FullQuestionBuilder:
         if question_style in ["prefix_and_opinion", "opinion_only"]:
             augmented_data['chosen_wrong_answer_index'] = []
             augmented_data['chosen_wrong_answer'] = []
-        if prefix_df is not None and prefix_type and question_style == "prefix_and_opinion":
-            augmented_data[f'chosen_{prefix_type}_prefix'] = []
 
-        prefix_used = prefix_df is not None and prefix_type and question_style == "prefix_and_opinion"
+        prefix_used = bool(prefix_type) and question_style == "prefix_and_opinion" and (
+            prefix_df is not None or prefix_func is not None
+        )
         if prefix_used:
-            if prefix_selector_args is None:
-                prefix_selector_args = {}
-            if prefix_selector_func is None:
-                raise ValueError("prefix_selector_func must be provided when prefix_df is used.")
-            self._validate_prefix_df(prefix_df)
+            augmented_data[f'chosen_{prefix_type}_prefix'] = []
+            if prefix_func is None:
+                if prefix_selector_args is None:
+                    prefix_selector_args = {}
+                if prefix_selector_func is None:
+                    raise ValueError("prefix_selector_func must be provided when prefix_df is used.")
+                self._validate_prefix_df(prefix_df)
 
         question_col = self.reverse_mapping.get('question', 'question')
         category_col = 'category'
@@ -129,7 +158,7 @@ class FullQuestionBuilder:
         answer_index_col = 'answer_index'
 
         skipped_rows = []
-        for idx, row in self.df.iterrows():
+        for pos, (idx, row) in enumerate(self.df.iterrows()):
             category = row[category_col]
             question = row[question_col]
             options = row[options_col]
@@ -148,16 +177,21 @@ class FullQuestionBuilder:
             wrong_answer_label = "N/A"
             random_false_answer = "something else"
             if question_style in ["prefix_and_opinion", "opinion_only"]:
-                false_indices = [i for i in range(len(options)) if i != answer_index]
-                if false_indices:
-                    random_false_index = random.choice(false_indices)
+                if self.fixed_wrong_indices is not None:
+                    random_false_index = self.fixed_wrong_indices[pos]
+                else:
+                    random_false_index = self._draw_wrong_index(options, answer_index)
+                if random_false_index is not None:
                     random_false_answer = options[random_false_index]
                     wrong_answer_label = option_labels[random_false_index]
 
             # Select prefix if applicable
             prefix = ""
             if prefix_used:
-                prefix = prefix_selector_func(prefix_df, category, **prefix_selector_args)
+                if prefix_func is not None:
+                    prefix = prefix_func(category)
+                else:
+                    prefix = prefix_selector_func(prefix_df, category, **prefix_selector_args)
 
             # Build full question based on style
             if question_style == "prefix_and_opinion":
@@ -202,79 +236,3 @@ def match_category_prefix(prefix_df, category, fallback_prefix=None):
         print(f"Warning: No prefixes found for category '{category}'. Using fallback.")
         return fallback_prefix
     return random.choice(category_prefixes.tolist())
-
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Build full questions and generate multiple data styles")
-    parser.add_argument("--raw_file", type=str, default="raw_data/mmlu_raw.pkl", help="Raw data pkl path")
-    parser.add_argument("--prefix_file", type=str, default="prefix/academic_prefix_mmlu.pkl", help="Academic prefix pkl path")
-    parser.add_argument("--output_dir", type=str, default="prefix_full_question", help="Output directory")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
-    args = parser.parse_args()
-    random.seed(args.seed)
-
-    raw_file = args.raw_file
-    prefix_file_academic = args.prefix_file
-    output_dir = args.output_dir
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Load input data
-    try:
-        df_raw = pd.read_pickle(raw_file)
-        prefix_df_academic = pd.read_pickle(prefix_file_academic)
-    except FileNotFoundError as e:
-        print(f"Error: Input file not found: {e}")
-        exit(1)
-
-    # Column mapping
-    column_mapping = {
-        'question': 'question',
-        'subject': 'category',
-        'choices': 'options',
-        'answer': 'answer_index'
-    }
-
-    # Initialize builder
-    try:
-        builder = FullQuestionBuilder(df_raw, base_output_dir=output_dir, column_mapping=column_mapping)
-    except ValueError as e:
-        print(f"Error initializing FullQuestionBuilder: {e}")
-        exit(1)
-
-    base_name = os.path.splitext(os.path.basename(raw_file))[0].replace("_raw", "")
-
-    # Generate augmented datasets
-    try:
-        # 1. Prefix and opinion
-        augmented_academic_opinion = builder.build_augmented(
-            prefix_df=prefix_df_academic,
-            prefix_type="academic",
-            prefix_selector_func=match_category_prefix,
-            prefix_selector_args={"fallback_prefix": "I am an expert in this field."},
-            question_style="prefix_and_opinion"
-        )
-        seed_suffix = args.seed
-        output_file_academic_opinion = os.path.join(output_dir, f"{base_name}_academic_opinion_{seed_suffix}.pkl")
-        augmented_academic_opinion.to_pickle(output_file_academic_opinion)
-        print(f"Saved academic with opinion data to {output_file_academic_opinion}")
-
-        # 2. Opinion only
-        augmented_opinion = builder.build_augmented(
-            prefix_type="",
-            question_style="opinion_only"
-        )
-        output_file_opinion = os.path.join(output_dir, f"{base_name}_opinion_only_{seed_suffix}.pkl")
-        augmented_opinion.to_pickle(output_file_opinion)
-        print(f"Saved opinion-only data to {output_file_opinion}")
-
-        # 3. Plain
-        augmented_plain = builder.build_augmented(
-            prefix_type="",
-            question_style="plain"
-        )
-        output_file_plain = os.path.join(output_dir, f"{base_name}_plain_{seed_suffix}.pkl")
-        augmented_plain.to_pickle(output_file_plain)
-        print(f"Saved plain data to {output_file_plain}")
-    except Exception as e:
-        print(f"Error generating augmented datasets: {e}")
-        exit(1)

@@ -11,6 +11,7 @@ COLOR_ERROR = "#e74c3c"
 
 LABELS_PLAIN_OPINION = ["plain", "opinion_only"]
 LABELS_ACADEMIC_LEVEL = ["Beginner", "Intermediate", "Advanced"]
+LEVELS_ACADEMIC = ("beginner", "intermediate", "advanced")
 
 
 def output_dirs_for_dataset(dataset_subdir: str) -> tuple[dict[str, str], dict[str, str]]:

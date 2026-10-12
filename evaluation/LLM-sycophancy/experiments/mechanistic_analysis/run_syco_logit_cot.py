@@ -74,6 +74,14 @@ def parse_args():
              "(lines like 'A. ...', 'E. ...' in full_question). Increases pickle size.",
     )
     parser.add_argument(
+        "--mean_pool_layers",
+        type=str,
+        default="",
+        help="Also save the mean-pooled hidden state over all prompt tokens (special tokens excluded) "
+             "in column layer_mean_pool_hs, used for the PCA analysis. '' = off, 'last', 'all', or "
+             "comma-separated 0-based layer indices (negative counts from the end).",
+    )
+    parser.add_argument(
         "--stream_hs_dir",
         type=str,
         default=None,
@@ -142,6 +150,43 @@ def get_layer_indices(total_layers, inference_layer):
     else:
         raise ValueError(f"Invalid inference_layer: {inference_layer}")
 
+def resolve_mean_pool_layers(spec: str, total_layers: int) -> list[int]:
+    """Parse --mean_pool_layers ('' / 'last' / 'all' / '0,15,-1') into 0-based layer indices."""
+    spec = (spec or "").strip().lower()
+    if not spec:
+        return []
+    if spec == "last":
+        return [total_layers - 1]
+    if spec == "all":
+        return list(range(total_layers))
+    out = []
+    for part in spec.split(","):
+        i = int(part)
+        i = i + total_layers if i < 0 else i
+        if not 0 <= i < total_layers:
+            raise ValueError(f"--mean_pool_layers index {part} out of range for {total_layers} layers")
+        out.append(i)
+    return sorted(set(out))
+
+
+def mean_pool_hidden_states(hidden_states, input_ids, attention_mask, tokenizer, layers: list[int]) -> dict:
+    """Mean over prompt tokens (special tokens such as BOS excluded) of each requested layer's hidden state."""
+    if not layers:
+        return {}
+    keep = attention_mask[0].bool()
+    special_ids = sorted(set(tokenizer.all_special_ids or []))
+    if special_ids:
+        special = torch.tensor(special_ids, device=input_ids.device)
+        non_special = keep & ~torch.isin(input_ids[0], special)
+        if non_special.any():
+            keep = non_special
+    pooled = {}
+    for layer_idx in layers:
+        h = hidden_states[layer_idx + 1][0, keep, :].float().mean(dim=0)
+        pooled[f"layer_{layer_idx}"] = h.detach().cpu().to(torch.float16).numpy()
+    return pooled
+
+
 def process_question(
     question,
     tokenizer,
@@ -150,6 +195,7 @@ def process_question(
     inference_layer,
     question_index,
     save_option_hs: bool = False,
+    mean_pool_layers: str = "",
 ):
     try:
         logging.debug(f"Processing question at index {question_index}: '{question[:50]}...'")
@@ -245,6 +291,10 @@ def process_question(
         # Initialize layer-wise logits storage
         total_layers = len(hidden_states) - 1  # Number of transformer layers
         layer_indices = get_layer_indices(total_layers, inference_layer)
+        layer_mean_pool_hs = mean_pool_hidden_states(
+            hidden_states, input_ids, attention_mask, tokenizer,
+            resolve_mean_pool_layers(mean_pool_layers, total_layers),
+        )
         layer_logits = {f"layer_{i}": dict(init_logits) for i in layer_indices}
         # Layer-wise hidden states storage (last token vector only)
         layer_hidden_states = {}
@@ -314,13 +364,13 @@ def process_question(
 
         if not is_valid_answer(selected_answer):
             logging.warning(f"Invalid answer at index {question_index}: '{selected_answer}' for question: '{question[:50]}...'")
-            return "Error", layer_logits, raw_output, layer_hidden_states, layer_option_hidden_states
+            return "Error", layer_logits, raw_output, layer_hidden_states, layer_option_hidden_states, layer_mean_pool_hs
 
-        return selected_answer, layer_logits, raw_output, layer_hidden_states, layer_option_hidden_states
+        return selected_answer, layer_logits, raw_output, layer_hidden_states, layer_option_hidden_states, layer_mean_pool_hs
 
     except Exception as e:
         logging.error(f"Error processing question at index {question_index} '{question[:50]}...': {str(e)}\n{traceback.format_exc()}")
-        return "Error", {}, "Error in processing", {}, {}
+        return "Error", {}, "Error in processing", {}, {}, {}
 
 def main():
     args = parse_args()
@@ -343,6 +393,7 @@ def main():
     max_retries = args.max_retries
     device_arg = getattr(args, "device", "auto")
     save_option_hs = getattr(args, "save_option_hs", False)
+    mean_pool_layers = getattr(args, "mean_pool_layers", "") or ""
     stream_hs_dir_raw = getattr(args, "stream_hs_dir", None)
     stream_hs_root: Path | None = (
         Path(stream_hs_dir_raw).expanduser().resolve()
@@ -489,6 +540,8 @@ def main():
             df["layer_option_hidden_states"] = None
         if "hs_artifact_path" not in df.columns:
             df["hs_artifact_path"] = None
+        if mean_pool_layers and "layer_mean_pool_hs" not in df.columns:
+            df["layer_mean_pool_hs"] = None
 
         def _assign_hs_columns(idx, lhs, lohs):
             if stream_hs_root is not None:
@@ -504,9 +557,10 @@ def main():
         logging.info("Testing with first 5 questions...")
         for idx in df.index[:5]:
             question = df.at[idx, full_question_column]
-            answer, layer_logits, raw_out, layer_hidden_states, layer_option_hidden_states = process_question(
+            answer, layer_logits, raw_out, layer_hidden_states, layer_option_hidden_states, _ = process_question(
                 question, tokenizer, model, inference_mode, inference_layer, idx,
                 save_option_hs=save_option_hs,
+                mean_pool_layers=mean_pool_layers,
             )
             print(f"Test question at index {idx}: Answer = {answer}, Layer Logits = {layer_logits}, Raw Output = {raw_out[:100]}...")
             logging.info(f"Test question at index {idx}: Answer = {answer}, Layer Logits = {layer_logits}, Raw Output = {raw_out}")
@@ -519,13 +573,16 @@ def main():
         for idx in tqdm(df.index, total=len(df), desc="Initial processing"):
             if not is_valid_answer(df.at[idx, "model_answer"]):
                 question = df.at[idx, full_question_column]
-                answer, layer_logits, raw_out, layer_hidden_states, layer_option_hidden_states = process_question(
+                answer, layer_logits, raw_out, layer_hidden_states, layer_option_hidden_states, layer_mean_pool_hs = process_question(
                     question, tokenizer, model, inference_mode, inference_layer, idx,
                     save_option_hs=save_option_hs,
+                    mean_pool_layers=mean_pool_layers,
                 )
                 df.at[idx, "model_answer"] = answer
                 df.at[idx, "layer_logits"] = layer_logits
                 df.at[idx, "raw_output"] = raw_out
+                if mean_pool_layers:
+                    df.at[idx, "layer_mean_pool_hs"] = layer_mean_pool_hs
                 _assign_hs_columns(idx, layer_hidden_states, layer_option_hidden_states)
                 del layer_hidden_states, layer_option_hidden_states
                 torch.cuda.empty_cache()
@@ -548,13 +605,16 @@ def main():
             logging.info(f"Retry {retry_count + 1}/{max_retries}: Found {len(invalid_indices)} entries with invalid answers.")
             for idx in tqdm(invalid_indices, desc=f"Retry {retry_count + 1}"):
                 question = df.at[idx, full_question_column]
-                answer, layer_logits, raw_out, layer_hidden_states, layer_option_hidden_states = process_question(
+                answer, layer_logits, raw_out, layer_hidden_states, layer_option_hidden_states, layer_mean_pool_hs = process_question(
                     question, tokenizer, model, inference_mode, inference_layer, idx,
                     save_option_hs=save_option_hs,
+                    mean_pool_layers=mean_pool_layers,
                 )
                 df.at[idx, "model_answer"] = answer
                 df.at[idx, "layer_logits"] = layer_logits
                 df.at[idx, "raw_output"] = raw_out
+                if mean_pool_layers:
+                    df.at[idx, "layer_mean_pool_hs"] = layer_mean_pool_hs
                 _assign_hs_columns(idx, layer_hidden_states, layer_option_hidden_states)
                 del layer_hidden_states, layer_option_hidden_states
                 torch.cuda.empty_cache()

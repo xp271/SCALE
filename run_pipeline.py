@@ -263,7 +263,7 @@ def main() -> None:
         for s in data_seeds:
             if s is None:
                 continue
-            if not ensure_syco_data_for_seed(syco_repo, s, syco_args):
+            if not ensure_syco_data_for_seed(syco_repo, s, syco_args, need_authority=eval_authority_advanced):
                 print(f"cannot prepare data for data_seed={s}, exiting", file=sys.stderr)
                 sys.exit(1)
             if eval_authority_advanced and not verify_academic_three_levels(syco_repo, data_slug, s):

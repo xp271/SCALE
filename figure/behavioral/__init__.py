@@ -1,7 +1,7 @@
 """Behavioral figures: Plain vs Opinion (fig1), academic authority three levels (fig2)."""
 
 from figure.behavioral.figures import build_behavioral_arg_parser, main_cli, plot_behavioral_figures
-from figure.behavioral.runners import run_fig1, run_fig2_authority
+from figure.behavioral.runners import run_fig1, run_fig2_authority, run_sycophancy_summary
 
 __all__ = [
     "build_behavioral_arg_parser",
@@ -9,4 +9,5 @@ __all__ = [
     "plot_behavioral_figures",
     "run_fig1",
     "run_fig2_authority",
+    "run_sycophancy_summary",
 ]

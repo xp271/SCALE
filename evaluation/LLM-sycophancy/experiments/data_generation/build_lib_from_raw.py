@@ -6,15 +6,18 @@ From raw pkl (MMLU / CommonsenseQA etc.) build experiment pkls under lib/:
 
 Dependencies:
 - raw pkl: from download_mmlu.py / download_commonsenseqa.py (columns question, subject, choices, answer)
-- prefix pkl: generate_prefixes.py; filenames must match --output_name_prefix:
-  {prefix_dir}/{output_name_prefix}_{level}_{seed}.pkl
+
+Prompts follow the paper (Section 3 "Prompts", Table 4):
+- The user's belief ("I believe the answer is X. ...") is one incorrect option drawn once per question
+  and shared by the Opinion-only prompt and all three Opinion-with-Authority prompts.
+- Opinion-with-Authority prepends the original persona of each level (Novice / Competent / Expert,
+  see prompt_templates.py), e.g. "As a Novice in {subject}, I'm just starting to learn ...".
 
 Run from LLM-sycophancy repo root so lib/ lands under repo root.
 
 CQA example:
   python experiments/data_generation/build_lib_from_raw.py \\
     --raw_file experiments/data_generation/raw_data/commonsenseqa_raw.pkl \\
-    --output_name_prefix academic_prefix_commonsenseqa \\
     --seed 42
 """
 
@@ -30,7 +33,6 @@ if HERE not in sys.path:
     sys.path.append(HERE)
 
 _REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-DEFAULT_PREFIXMY_DIR = os.path.join(_REPO_ROOT, "prefixmy")
 
 
 def _resolve_under_data_gen(path: str) -> str:
@@ -58,30 +60,19 @@ def infer_data_slug(raw_path: str) -> str:
     return stem if stem else "dataset"
 
 
-from full_question_builder import FullQuestionBuilder, match_category_prefix
+from full_question_builder import FullQuestionBuilder
+from prompt_templates import AUTHORITY_LEVELS, ORIGINAL_PERSONA, build_authority_prefix
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Build plain, opinion_only, prefix+opinion (three levels) pkls under lib/ from raw pkl"
+        description="Build plain, opinion_only, opinion-with-authority (three levels) pkls under lib/ from raw pkl"
     )
     parser.add_argument(
         "--raw_file",
         type=str,
         default="raw_data/mmlu_raw.pkl",
         help="Raw pkl; resolve under experiments/data_generation first, else repo root",
-    )
-    parser.add_argument(
-        "--prefix_dir",
-        type=str,
-        default=DEFAULT_PREFIXMY_DIR,
-        help=f"Prefix pkl directory (default prefixmy under repo root: {DEFAULT_PREFIXMY_DIR})",
-    )
-    parser.add_argument(
-        "--output_name_prefix",
-        type=str,
-        default="academic_prefix_mmlu",
-        help="Must match generate_prefixes.py --output_name_prefix, e.g. academic_prefix_commonsenseqa for CQA",
     )
     parser.add_argument(
         "--data_slug",
@@ -93,15 +84,13 @@ def main():
         "--seed",
         type=int,
         default=42,
-        help="Random seed; must match generate_prefixes.py --seed when prefixes were built",
+        help="Random seed for the user's (incorrect) belief drawn per question",
     )
     args = parser.parse_args()
 
     seed = args.seed
     random.seed(seed)
     raw_file = _resolve_under_data_gen(args.raw_file)
-    prefix_dir = args.prefix_dir
-    output_name_prefix = args.output_name_prefix
     data_slug = args.data_slug if args.data_slug else infer_data_slug(raw_file)
 
     if not os.path.exists(raw_file):
@@ -111,7 +100,7 @@ def main():
         )
 
     print(f"Reading raw data: {raw_file}")
-    print(f"data_slug={data_slug}, output_name_prefix={output_name_prefix}, seed={seed}")
+    print(f"data_slug={data_slug}, seed={seed}")
     df_raw = pd.read_pickle(raw_file)
 
     # Column mapping consistent with data_generation code
@@ -137,43 +126,31 @@ def main():
     for p in paths_to_create:
         os.makedirs(p, exist_ok=True)
 
-    # 1. Plain baseline
+    # 1. Plain baseline (consumes no randomness)
     print("Building plain baseline data ...")
     df_plain = builder.build_augmented(prefix_type="", question_style="plain")
     plain_path = f"lib/plain/{data_slug}_plain_{seed}.pkl"
     df_plain.to_pickle(plain_path)
     print(f"Wrote {plain_path}, samples: {len(df_plain)}")
 
-    # 2. Opinion-only
+    # 2. Opinion-only. The wrong option is drawn once here and reused by the authority prompts.
     print("Building opinion-only data ...")
+    builder.fix_wrong_answers()
     df_opinion = builder.build_augmented(prefix_type="", question_style="opinion_only")
     opinion_path = f"lib/opinion_only/prefix/{data_slug}_opinion_only_{seed}.pkl"
     df_opinion.to_pickle(opinion_path)
     print(f"Wrote {opinion_path}, samples: {len(df_opinion)}")
 
-    # 3. POV + expertise (first-person)
-    levels = ["beginner", "intermediate", "advanced"]
-    for level in levels:
-        prefix_file = os.path.join(
-            prefix_dir, f"{output_name_prefix}_{level}_{seed}.pkl"
-        )
-        if not os.path.exists(prefix_file):
-            raise FileNotFoundError(
-                f"prefix file not found: {prefix_file}."
-                f"Run first: python generate_prefixes.py --raw_file <same raw as here> "
-                f"--output_name_prefix {output_name_prefix} --seed {seed} "
-                f"(and --prefix_dir points to the same dir, default prefixmy under repo root)."
-            )
-
-        print(f"Building POV + expertise ({level}) data ...")
-        prefix_df = pd.read_pickle(prefix_file)
+    # 3. Opinion-with-Authority: original persona of each level + the same user opinion
+    for level in AUTHORITY_LEVELS:
+        print(f"Building opinion-with-authority ({level}) data ...")
         df_pov = builder.build_augmented(
-            prefix_df=prefix_df,
             prefix_type="academic",
-            prefix_selector_func=match_category_prefix,
-            prefix_selector_args={"fallback_prefix": "I am an expert in this field."},
+            prefix_func=lambda subject, _level=level: build_authority_prefix(_level, subject, ORIGINAL_PERSONA),
             question_style="prefix_and_opinion",
         )
+        if not df_pov["chosen_wrong_answer_index"].equals(df_opinion["chosen_wrong_answer_index"]):
+            raise RuntimeError(f"{level}: user belief differs from the opinion-only data")
 
         out_path = f"lib/pov/prefix/first_pov/{data_slug}_academic_opinion_{level}_{seed}.pkl"
         os.makedirs(os.path.dirname(out_path), exist_ok=True)

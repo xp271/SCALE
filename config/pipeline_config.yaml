@@ -26,9 +26,17 @@ llmc_dir: ../quantization/LightCompress
 syco_repo_dir: ../evaluation/LLM-sycophancy
 
 # Model pool: CLI --model must match one model_id
+# Paper: LLaMA3.1-8B-Instruct / Qwen3-8B / Mistral-7B-Instruct-v0.3 (main), plus LLaMA3.2-1B-Instruct and
+# LLaMA2-13B-Chat for the model-size study (Appendix F). The remaining entries are not used in the paper.
 models:
   - model_id: llama_3.1_8b_instruct
     path: meta-llama/Llama-3.1-8B-Instruct
+    type: Llama
+  - model_id: llama_3.2_1b_instruct
+    path: meta-llama/Llama-3.2-1B-Instruct
+    type: Llama
+  - model_id: llama_2_13b_chat
+    path: meta-llama/Llama-2-13b-chat-hf
     type: Llama
   - model_id: qwen2.5_7b_instruct
     path: Qwen/Qwen2.5-7B-Instruct
@@ -84,7 +92,7 @@ syco:
       data_slug: commonsenseqa
       raw_file: experiments/data_generation/raw_data/commonsenseqa_raw.pkl
       download_script: download_commonsenseqa.py
-      build_lib_extra_args: ["--output_name_prefix", "academic_prefix_commonsenseqa"]
+      build_lib_extra_args: []
 
   question_type: opinion_only
   prefix_type: ""

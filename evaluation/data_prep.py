@@ -13,8 +13,17 @@ import sys
 from pathlib import Path
 
 
-def ensure_syco_data_for_seed(syco_repo: Path, seed: int, syco_cfg: dict) -> bool:
-    """Download raw and run build_lib_from_raw if plain / opinion_only pkls for this seed are missing."""
+def _academic_level_pkls(syco_repo: Path, data_slug: str, seed: int) -> list[Path]:
+    fp_dir = syco_repo / "lib" / "pov" / "prefix" / "first_pov"
+    return [fp_dir / f"{data_slug}_academic_opinion_{level}_{seed}.pkl" for level in ("beginner", "intermediate", "advanced")]
+
+
+def ensure_syco_data_for_seed(syco_repo: Path, seed: int, syco_cfg: dict, need_authority: bool = False) -> bool:
+    """Download raw and run build_lib_from_raw if the lib pkls for this seed are missing.
+
+    ``need_authority`` also requires the three Opinion-with-Authority pkls. Rebuilding is safe:
+    for a given seed, build_lib_from_raw regenerates identical plain / opinion_only pkls.
+    """
     dataset = syco_cfg.get("dataset", "mmlu")
     data_slug = syco_cfg.get("data_slug") or dataset
     raw_rel = syco_cfg.get("raw_file", "raw_data/mmlu_raw.pkl")
@@ -25,7 +34,10 @@ def ensure_syco_data_for_seed(syco_repo: Path, seed: int, syco_cfg: dict) -> boo
 
     plain_pkl = syco_repo / "lib" / "plain" / f"{data_slug}_plain_{seed}.pkl"
     opinion_pkl = syco_repo / "lib" / "opinion_only" / "prefix" / f"{data_slug}_opinion_only_{seed}.pkl"
-    if plain_pkl.exists() and opinion_pkl.exists():
+    required = [plain_pkl, opinion_pkl]
+    if need_authority:
+        required.extend(_academic_level_pkls(syco_repo, data_slug, seed))
+    if all(p.exists() for p in required):
         return True
 
     raw_pkl = (syco_repo / raw_rel).resolve() if not os.path.isabs(raw_rel) else Path(raw_rel)
@@ -59,7 +71,7 @@ def ensure_syco_data_for_seed(syco_repo: Path, seed: int, syco_cfg: dict) -> boo
     if not build_script.exists():
         print(f"not found: {build_script}", file=sys.stderr)
         return False
-    print(f"Building lib plain/opinion_only for seed={seed} (data_slug={data_slug})...")
+    print(f"Building lib plain/opinion_only/authority for seed={seed} (data_slug={data_slug})...")
     try:
         cmd = [
             sys.executable,
@@ -77,11 +89,12 @@ def ensure_syco_data_for_seed(syco_repo: Path, seed: int, syco_cfg: dict) -> boo
             capture_output=True,
             text=True,
         )
-        if not plain_pkl.exists() or not opinion_pkl.exists():
+        missing = [p for p in required if not p.exists()]
+        if missing:
             if r.returncode != 0 and r.stderr:
                 print(r.stderr, file=sys.stderr)
             print(
-                f"pkls still missing after build: plain={plain_pkl.exists()}, opinion={opinion_pkl.exists()}",
+                "pkls still missing after build: " + ", ".join(p.name for p in missing),
                 file=sys.stderr,
             )
             return False
@@ -99,11 +112,11 @@ def verify_academic_three_levels(syco_repo: Path, data_slug: str, seed: int) -> 
     """
     fp_dir = syco_repo / "lib" / "pov" / "prefix" / "first_pov"
     required_levels = ("beginner", "intermediate", "advanced")
-    missing = []
-    for level in required_levels:
-        p = fp_dir / f"{data_slug}_academic_opinion_{level}_{seed}.pkl"
-        if not p.exists():
-            missing.append((level, p))
+    missing = [
+        (level, p)
+        for level, p in zip(required_levels, _academic_level_pkls(syco_repo, data_slug, seed))
+        if not p.exists()
+    ]
     if not missing:
         return True
     hint = ""
@@ -120,7 +133,7 @@ def verify_academic_three_levels(syco_repo: Path, data_slug: str, seed: int) -> 
     print(
         "eval_authority_advanced is on but Academic three-level input files are missing:\n"
         f"{miss_text}\n"
-        f"Run generate_prefixes.py and build_lib_from_raw.py for seed={seed} (match build_lib_extra_args)."
+        f"Run build_lib_from_raw.py for seed={seed} (match build_lib_extra_args)."
         f"{hint}",
         file=sys.stderr,
     )

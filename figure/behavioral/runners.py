@@ -45,6 +45,48 @@ def run_fig1(
         return 1
 
 
+def run_sycophancy_summary(
+    *,
+    dataset: str,
+    figure_dir: str,
+    plot_model_id: str,
+    plot_method_id: str,
+    plot_name_with_dataset: str,
+    seeds_for_plot: list[int],
+    output_base: str,
+    with_authority: bool,
+    **_: Any,
+) -> int:
+    """OSR / ASR (mean ± std over seeds) and Delta vs. full precision for one quantized combo."""
+    from figure.behavioral.delta_sr import (
+        FP_METHOD_ID,
+        collect_rates,
+        print_summary,
+        summarize_against_fp,
+        write_summary_csv,
+    )
+
+    if plot_method_id == FP_METHOD_ID:
+        return 0
+    print(f"[Plot] OSR/ASR summary for {plot_name_with_dataset} (seeds {seeds_for_plot}) ...")
+    try:
+        base = os.path.abspath(str(output_base))
+        rates_fp = collect_rates(base, dataset, plot_model_id, FP_METHOD_ID, seeds_for_plot, with_authority=with_authority)
+        rates_q = collect_rates(base, dataset, plot_model_id, plot_method_id, seeds_for_plot, with_authority=with_authority)
+        summary = summarize_against_fp(rates_q, rates_fp)
+        print_summary(plot_method_id, summary)
+        method, _, bits = plot_method_id.rpartition("_w")
+        rows = [
+            {"method_id": plot_method_id, "method": method, "bits": bits, "metric": m, **s}
+            for m, s in summary.items()
+        ]
+        write_summary_csv(rows, os.path.join(figure_dir, f"sycophancy_{plot_name_with_dataset}.csv"))
+        return 0
+    except Exception:
+        traceback.print_exc()
+        return 1
+
+
 def run_fig2_authority(
     *,
     dataset: str,

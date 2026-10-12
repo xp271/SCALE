@@ -7,13 +7,21 @@ LLM-sycophancy subdirs:
 - behavioral (``experiments/behavioral_analysis``): ``run_syco.py`` with plain
   / opinion_only / authority levels / behavior prefix.
 - mechanistic (``experiments/mechanistic_analysis``): ``run_syco_logit_cot.py``
-  for logit-only inference on plain / opinion_only.
+  for logit-only inference on plain / opinion_only, plus the three authority levels
+  when authority is also requested (authority DS + PCA).
 """
 from __future__ import annotations
 
 from utils.paths import DIR_SYCO_SCRIPT
 
 DIR_MECH_SCRIPT = "experiments/mechanistic_analysis"
+AUTHORITY_LEVELS = ("beginner", "intermediate", "advanced")
+# Mean-pooled prompt hidden state of the last layer, used by the authority PCA (Figure 5a/b)
+PCA_MEAN_POOL_LAYERS = "last"
+
+
+def _authority_lib_path(data_slug: str, level: str) -> str:
+    return f"lib/pov/prefix/first_pov/{data_slug}_academic_opinion_{level}.pkl"
 
 
 def build_behavioral_jobs(
@@ -45,8 +53,8 @@ def build_behavioral_jobs(
     ]
     if eval_authority_advanced:
         # Run all three levels for fig2 (Beginner / Intermediate / Advanced)
-        for level in ("beginner", "intermediate", "advanced"):
-            level_in = f"lib/pov/prefix/first_pov/{data_slug}_academic_opinion_{level}.pkl"
+        for level in AUTHORITY_LEVELS:
+            level_in = _authority_lib_path(data_slug, level)
             jobs.append(
                 {
                     "script": "run_syco.py",
@@ -85,11 +93,11 @@ def build_behavioral_jobs(
     return jobs
 
 
-def build_mechanistic_jobs(data_slug: str) -> list[dict]:
-    """logit_only inference on plain / opinion_only (used for KL/DS plots)."""
+def build_mechanistic_jobs(data_slug: str, *, include_authority: bool = False) -> list[dict]:
+    """logit_only inference on plain / opinion_only (KL/DS plots) and, optionally, the authority levels."""
     plain_in = f"lib/plain/{data_slug}_plain.pkl"
     opinion_in = f"lib/opinion_only/prefix/{data_slug}_opinion_only.pkl"
-    return [
+    jobs = [
         {
             "script": "run_syco_logit_cot.py",
             "dir": DIR_MECH_SCRIPT,
@@ -99,6 +107,7 @@ def build_mechanistic_jobs(data_slug: str) -> list[dict]:
                 "question_type": "opinion_only",
                 "inference_mode": "logit_only",
                 "inference_layer": "all",
+                "mean_pool_layers": PCA_MEAN_POOL_LAYERS,
                 "input_filename": opinion_in,
             },
         },
@@ -115,6 +124,27 @@ def build_mechanistic_jobs(data_slug: str) -> list[dict]:
             },
         },
     ]
+    if include_authority:
+        for level in AUTHORITY_LEVELS:
+            jobs.append(
+                {
+                    "script": "run_syco_logit_cot.py",
+                    "dir": DIR_MECH_SCRIPT,
+                    "tag": f"logit_cot_authority_{level}",
+                    "for_aggregate": False,
+                    "kwargs": {
+                        "question_type": "prefix_and_opinion",
+                        "prefix_type": "academic",
+                        "prefix_subtype": "original",
+                        "academic_level": level,
+                        "inference_mode": "logit_only",
+                        "inference_layer": "all",
+                        "mean_pool_layers": PCA_MEAN_POOL_LAYERS,
+                        "input_filename": _authority_lib_path(data_slug, level),
+                    },
+                }
+            )
+    return jobs
 
 
 def build_syco_eval_jobs(
@@ -132,12 +162,13 @@ def build_syco_eval_jobs(
         eval_behavior_prefix=eval_behavior_prefix,
         behavior_input_filename=behavior_input_filename,
     )
-    # Order: plain / opinion_only / logit_cot_* / authority_* / behavior_prefix
-    # Legacy: mechanistic jobs right after plain/opinion, then authority/behavior.
+    # Order: plain / opinion_only / logit_cot_{opinion,plain} / authority_* / behavior_prefix / logit_cot_authority_*
     if eval_mechanistic:
-        mech = build_mechanistic_jobs(data_slug)
+        mech = build_mechanistic_jobs(data_slug, include_authority=eval_authority_advanced)
+        mech_head = [j for j in mech if not j["tag"].startswith("logit_cot_authority_")]
+        mech_tail = [j for j in mech if j["tag"].startswith("logit_cot_authority_")]
         # Insert after plain+opinion, before authority/behavior
         head = [j for j in jobs if j["tag"] in ("plain", "opinion_only")]
         tail = [j for j in jobs if j["tag"] not in ("plain", "opinion_only")]
-        jobs = head + mech + tail
+        jobs = head + mech_head + tail + mech_tail
     return jobs

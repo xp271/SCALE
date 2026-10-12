@@ -10,6 +10,7 @@ def _usage() -> None:
         "  python -m figure.mechanistic.cli_kl_across_methods ...\n"
         "  python -m figure.mechanistic.cli_ds_fp_quant ...\n"
         "  python -m figure.mechanistic.cli_ds_authority ...\n"
+        "  python -m figure.mechanistic.cli_pca_authority ...\n"
         "\nOr use figure.mechanistic.runners.run_decision_score / run_kl_divergence.\n"
     )
     print("Mechanistic plots / CLIs:")
